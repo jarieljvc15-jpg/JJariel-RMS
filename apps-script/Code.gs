@@ -116,6 +116,15 @@ function getConfig() {
   return cfg;
 }
 
+function appendSheetRow(sheet, data) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var row = headers.map(function(h) {
+    var key = String(h).trim();
+    return data.hasOwnProperty(key) ? data[key] : "";
+  });
+  sheet.appendRow(row);
+}
+
 function generateTxnID() {
   // Format: TXN-{timestamp}-{random 4 chars}
   var ts = Date.now().toString(36).toUpperCase();
@@ -396,9 +405,86 @@ function saveReading(body) {
 }
 
 function addTenant(body) {
-  // STUB: will create Tenant row, write Advance Credit and Deposit Credit
-  // ledger rows, and set unit Status = Occupied.
-  return { message: "stub: addTenant", name: body.name };
+  var name       = String(body.name       || "").trim();
+  var unitId     = String(body.unitId     || "").trim();
+  var contact    = String(body.contact    || "").trim();
+  var email      = String(body.email      || "").trim();
+  var moveInDate = String(body.moveInDate || "").trim();
+  var advance    = parseFloat(body.advance) || 0;
+  var deposit    = parseFloat(body.deposit) || 0;
+  var pin        = String(body.pin        || "").trim();
+
+  if (!name || !unitId || !pin) throw new Error("name, unitId, and pin are required");
+
+  var tenantId = "T-" + Date.now();
+  var today    = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var month    = moveInDate ? moveInDate.substring(0, 7)
+               : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+
+  // 1. Append tenant row
+  appendSheetRow(getSheet("Tenants"), {
+    TenantID:   tenantId,
+    Name:       name,
+    UnitID:     unitId,
+    Contact:    contact,
+    Email:      email,
+    MoveInDate: moveInDate,
+    Advance:    advance,
+    Deposit:    deposit,
+    PIN:        pin,
+    Status:     "Active"
+  });
+
+  // 2. Advance Credit ledger row
+  if (advance > 0) {
+    appendSheetRow(getSheet("Ledger"), {
+      TxnID:        generateTxnID(),
+      TenantID:     tenantId,
+      UnitID:       unitId,
+      BillingMonth: month,
+      TxnType:      "Credit",
+      Direction:    "Credit",
+      RentAmount:   advance,
+      ElecAmount:   0,
+      WaterAmount:  0,
+      TotalAmount:  advance,
+      Notes:        "Advance",
+      DatePaid:     today
+    });
+  }
+
+  // 3. Deposit Credit ledger row
+  if (deposit > 0) {
+    appendSheetRow(getSheet("Ledger"), {
+      TxnID:        generateTxnID(),
+      TenantID:     tenantId,
+      UnitID:       unitId,
+      BillingMonth: month,
+      TxnType:      "Credit",
+      Direction:    "Credit",
+      RentAmount:   deposit,
+      ElecAmount:   0,
+      WaterAmount:  0,
+      TotalAmount:  deposit,
+      Notes:        "Deposit",
+      DatePaid:     today
+    });
+  }
+
+  // 4. Mark unit as Occupied
+  var unitsSheet  = getSheet("Units");
+  var unitsData   = unitsSheet.getDataRange().getValues();
+  var unitHeaders = unitsData[0];
+  var unitIdCol   = unitHeaders.indexOf("UnitID");
+  var statusCol   = unitHeaders.indexOf("Status");
+  for (var i = 1; i < unitsData.length; i++) {
+    if (String(unitsData[i][unitIdCol]) === unitId) {
+      unitsSheet.getRange(i + 1, statusCol + 1).setValue("Occupied");
+      break;
+    }
+  }
+
+  return { tenantId: tenantId };
 }
 
 function moveTenant(body) {
