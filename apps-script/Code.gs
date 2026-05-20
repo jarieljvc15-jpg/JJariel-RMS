@@ -136,6 +136,13 @@ function isTxnIDDuplicate(txnId) {
   return false;
 }
 
+// Normalises a BillingMonth value to "YYYY-MM".
+// Sheets auto-converts "2026-05" → Date, which sheetToJSON serialises back
+// as "2026-05-01".  Taking the first 7 chars handles both forms.
+function normMonth(val) {
+  return String(val || "").substring(0, 7);
+}
+
 // Positive = tenant owes money. Negative = tenant has credit.
 // Deposit credits are never counted.
 // Advance credits only offset when at least one Bill/Debit exists.
@@ -219,7 +226,7 @@ function getLedger(params) {
     rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
   }
   if (params.billingMonth) {
-    rows = rows.filter(function(r) { return r["BillingMonth"] === params.billingMonth; });
+    rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
   return rows;
 }
@@ -236,7 +243,7 @@ function getReadings(params) {
     rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
   }
   if (params.billingMonth) {
-    rows = rows.filter(function(r) { return r["BillingMonth"] === params.billingMonth; });
+    rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
   return rows;
 }
@@ -290,15 +297,17 @@ function getDashboardData() {
   var currentMonth = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM");
 
   var currentMonthLedger = ledger.filter(function(r) {
-    return r["BillingMonth"] === currentMonth;
+    return normMonth(r["BillingMonth"]) === currentMonth;
   });
 
   var currentMonthBilled = 0;
   var currentMonthCollected = 0;
   currentMonthLedger.forEach(function(r) {
-    var amt = parseFloat(r["TotalAmount"]) || 0;
-    if (r["TxnType"] === "Bill"    && r["Direction"] === "Debit")  currentMonthBilled    += amt;
-    if (r["TxnType"] === "Payment" && r["Direction"] === "Credit") currentMonthCollected += amt;
+    var amt     = parseFloat(r["TotalAmount"]) || 0;
+    var txnType = String(r["TxnType"] || "").trim();
+    var dir     = String(r["Direction"] || "").trim();
+    if (txnType === "Bill"    && dir === "Debit")  currentMonthBilled    += amt;
+    if (txnType === "Payment" && dir === "Credit") currentMonthCollected += amt;
   });
 
   var totalOutstanding = 0;
@@ -323,7 +332,7 @@ function getDashboardData() {
 
     var monthMap = {};
     tenantLedger.forEach(function(r) {
-      var m = r["BillingMonth"];
+      var m = normMonth(r["BillingMonth"]);
       if (!m) return;
       // Skip deposit credits in month map too
       var isDepositCredit = r["Direction"] === "Credit" &&
@@ -409,7 +418,7 @@ function generateBill(body) {
   units.forEach(function(u) { unitMap[u["UnitID"]] = u; });
 
   var readings = sheetToJSON(getSheet("UtilityReadings")).filter(function(r) {
-    return r["BillingMonth"] === billingMonth;
+    return normMonth(r["BillingMonth"]) === normMonth(billingMonth);
   });
 
   var ledgerSheet = getSheet("Ledger");
@@ -654,11 +663,22 @@ function updateConfig(body) {
 
 function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance, cfg) {
   var apiKey = PropertiesService.getScriptProperties().getProperty("RESEND_API_KEY");
-  if (!apiKey || !tenant["Email"]) return;
+  if (!apiKey) {
+    Logger.log("sendReceiptEmail: skipped — RESEND_API_KEY not set in Script Properties");
+    return;
+  }
+  if (!tenant["Email"]) {
+    Logger.log("sendReceiptEmail: skipped — tenant has no email (tenantId=" + tenant["TenantID"] + ")");
+    return;
+  }
 
   var propertyName = cfg["PropertyName"] || "JJ Apartment";
   var adminContact = cfg["AdminContact"] || "N/A";
-  var fromEmail    = cfg["ResendFromEmail"] || ("noreply@" + propertyName.toLowerCase().replace(/\s+/g, "") + ".com");
+  var fromEmail    = cfg["ResendFromEmail"] || "";
+  if (!fromEmail) {
+    Logger.log("sendReceiptEmail: skipped — ResendFromEmail not set in Config sheet");
+    return;
+  }
 
   var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
 
@@ -673,10 +693,10 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     propertyName,
     "Payment Receipt",
     "",
-    "Tenant: "       + (tenant["Name"]      || ""),
-    "Unit: "         + (unit["UnitName"]    || "") + " · " + (unit["BuildingName"] || ""),
-    "Billing Month: "+ billingMonth,
-    "Date Paid: "    + today,
+    "Tenant: "        + (tenant["Name"]      || ""),
+    "Unit: "          + (unit["UnitName"]    || "") + " · " + (unit["BuildingName"] || ""),
+    "Billing Month: " + billingMonth,
+    "Date Paid: "     + today,
     "",
     "Rent Paid:     ₱" + (payment.rentAmount  || 0).toFixed(2),
     "Electric Paid: ₱" + (payment.elecAmount  || 0).toFixed(2),
@@ -695,20 +715,30 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     "For inquiries contact: " + adminContact
   ].join("\n");
 
-  var payload = {
+  var resendPayload = {
     from:    fromEmail,
     to:      [tenant["Email"]],
     subject: subject,
     text:    bodyText
   };
 
-  UrlFetchApp.fetch("https://api.resend.com/emails", {
+  Logger.log("sendReceiptEmail: sending to=" + tenant["Email"] + " from=" + fromEmail + " subject=" + subject);
+
+  var response = UrlFetchApp.fetch("https://api.resend.com/emails", {
     method:  "post",
     headers: {
       "Authorization": "Bearer " + apiKey,
       "Content-Type":  "application/json"
     },
-    payload:            JSON.stringify(payload),
+    payload:            JSON.stringify(resendPayload),
     muteHttpExceptions: true
   });
+
+  var statusCode = response.getResponseCode();
+  var responseBody = response.getContentText();
+  Logger.log("sendReceiptEmail: Resend response status=" + statusCode + " body=" + responseBody);
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error("Resend API returned " + statusCode + ": " + responseBody);
+  }
 }
