@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenant Portal — JJ Apartment RMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-card">
+
+    <div class="login-logo">
+      <div class="login-logo-name">JJ Apartment</div>
+      <div class="login-logo-sub">Tenant Portal</div>
+    </div>
+
+    <div id="loginForm">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" for="tenantUnit">Unit Number</label>
+        <input class="form-input" type="text" id="tenantUnit" placeholder="e.g. 101" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label" for="tenantPin">PIN</label>
+        <input class="form-input" type="password" id="tenantPin" placeholder="4-digit PIN" maxlength="4" inputmode="numeric" autocomplete="current-password">
+      </div>
+      <div id="loginError" class="alert alert--danger hidden" style="margin-bottom:16px;">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="loginErrorMsg">Invalid unit or PIN.</span>
+      </div>
+      <button class="btn btn--primary btn--full" id="loginBtn">
+        <span id="loginBtnText">Sign In</span>
+        <span id="loginSpinner" class="spinner hidden" style="width:18px;height:18px;border-width:2px;"></span>
+      </button>
+      <div style="text-align:center;margin-top:16px;">
+        <a href="../index.html" style="font-size:14px;color:var(--text-muted);text-decoration:none;">← Back to home</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="../assets/config.js"></script>
+<script>
+(function () {
+  // If already logged in, redirect to dashboard
+  if (localStorage.getItem('tenantToken') && localStorage.getItem('tenantUnit')) {
+    window.location.href = './dashboard.html';
+    return;
+  }
+
+  const unitInput  = document.getElementById('tenantUnit');
+  const pinInput   = document.getElementById('tenantPin');
+  const loginBtn   = document.getElementById('loginBtn');
+  const btnText    = document.getElementById('loginBtnText');
+  const spinner    = document.getElementById('loginSpinner');
+  const errorBox   = document.getElementById('loginError');
+  const errorMsg   = document.getElementById('loginErrorMsg');
+
+  function setLoading(on) {
+    loginBtn.disabled = on;
+    btnText.textContent = on ? 'Signing in…' : 'Sign In';
+    spinner.classList.toggle('hidden', !on);
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg || 'Invalid unit or PIN.';
+    errorBox.classList.remove('hidden');
+  }
+
+  async function doLogin() {
+    const unit = unitInput.value.trim();
+    const pin  = pinInput.value.trim();
+
+    errorBox.classList.add('hidden');
+
+    if (!unit) { unitInput.focus(); showError('Please enter your unit number.'); return; }
+    if (!pin)  { pinInput.focus();  showError('Please enter your PIN.');        return; }
+
+    setLoading(true);
+    try {
+      const url = CONFIG.APPS_SCRIPT_URL + '?action=verifyTenant&unit=' + encodeURIComponent(unit) + '&pin=' + encodeURIComponent(pin);
+      const res  = await fetch(url);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Invalid unit or PIN.');
+      localStorage.setItem('tenantToken', json.data.tenantId);
+      localStorage.setItem('tenantUnit',  unit);
+      window.location.href = './dashboard.html';
+    } catch (err) {
+      showError(err.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  loginBtn.addEventListener('click', doLogin);
+  pinInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+  unitInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') pinInput.focus(); });
+})();
+</script>
+</body>
+</html>
