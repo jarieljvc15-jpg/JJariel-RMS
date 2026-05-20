@@ -29,13 +29,13 @@
     </div>
 
     <div class="login-actions">
-      <a href="./admin/index.html" class="btn btn--primary btn--full">
+      <button class="btn btn--primary btn--full" id="adminLoginBtn">
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
           <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/>
           <path d="M9 21V12h6v9"/>
         </svg>
         Admin Login
-      </a>
+      </button>
       <a href="./tenant/index.html" class="btn btn--outline btn--full">
         <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
           <circle cx="9" cy="7" r="4"/>
@@ -49,13 +49,66 @@
   </div>
 </div>
 
+<!-- Admin passphrase modal -->
+<div id="adminModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--surface);border-radius:var(--radius);padding:28px 24px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-family:'Satoshi',sans-serif;font-weight:700;font-size:18px;color:var(--text-primary);margin-bottom:6px;">Admin Access</div>
+    <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px;">Enter the admin passphrase to continue.</div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label" for="adminPassphrase">Passphrase</label>
+      <input class="form-input" type="password" id="adminPassphrase" placeholder="Enter passphrase" autocomplete="current-password">
+      <div id="adminPassError" style="color:var(--danger);font-size:13px;margin-top:6px;display:none;">Passphrase cannot be empty.</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn--outline" id="adminModalCancel" style="flex:1;">Cancel</button>
+      <button class="btn btn--primary" id="adminModalSubmit" style="flex:2;">Enter</button>
+    </div>
+  </div>
+</div>
+
 <script>
-  // Register service worker for PWA support
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('./sw.js').catch(function() {});
     });
   }
+
+  (function () {
+    const modal      = document.getElementById('adminModal');
+    const input      = document.getElementById('adminPassphrase');
+    const errMsg     = document.getElementById('adminPassError');
+    const btnOpen    = document.getElementById('adminLoginBtn');
+    const btnCancel  = document.getElementById('adminModalCancel');
+    const btnSubmit  = document.getElementById('adminModalSubmit');
+
+    function openModal() {
+      input.value = '';
+      errMsg.style.display = 'none';
+      modal.style.display = 'flex';
+      setTimeout(() => input.focus(), 50);
+    }
+
+    function closeModal() {
+      modal.style.display = 'none';
+    }
+
+    function submit() {
+      const val = input.value.trim();
+      if (!val) {
+        errMsg.style.display = 'block';
+        input.focus();
+        return;
+      }
+      localStorage.setItem('adminToken', val);
+      window.location.href = './admin/index.html';
+    }
+
+    btnOpen.addEventListener('click', openModal);
+    btnCancel.addEventListener('click', closeModal);
+    btnSubmit.addEventListener('click', submit);
+    input.addEventListener('keydown', function(e) { if (e.key === 'Enter') submit(); });
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+  })();
 </script>
 
 </body>
