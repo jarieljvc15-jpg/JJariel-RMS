@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Billing — JJ Apartment RMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .topbar-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 17px;
+      color: #fff;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+      gap: 0;
+    }
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 12px 8px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* Info card */
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .info-card-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      padding: 5px 0;
+    }
+    .info-card-row:not(:last-child) {
+      border-bottom: 1px solid var(--border);
+    }
+    .info-card-label { color: var(--text-secondary); font-weight: 500; }
+    .info-card-value { font-weight: 600; color: var(--text-primary); }
+    .info-card-total .info-card-label,
+    .info-card-total .info-card-value {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+    .info-card-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 6px 0;
+    }
+
+    /* Balance states */
+    .bal-credit { color: var(--success); font-weight: 600; }
+    .bal-owed   { color: var(--danger);  font-weight: 600; }
+    .bal-zero   { color: var(--text-primary); font-weight: 600; }
+
+    /* Payment pills */
+    .pill-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pill-btn {
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 13px;
+      cursor: pointer;
+      border: 1.5px solid var(--border);
+      background: none;
+      color: var(--text-secondary);
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .pill-btn.active {
+      background: var(--navy-900);
+      color: #fff;
+      border-color: var(--navy-900);
+    }
+
+    /* Override split */
+    .split-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .split-row label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      flex: 1;
+    }
+    .split-row .form-input {
+      width: 120px;
+      text-align: right;
+    }
+
+    /* Override toggle */
+    .override-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 14px 0 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-switch {
+      width: 36px;
+      height: 20px;
+      background: var(--border);
+      border-radius: 999px;
+      position: relative;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      left: 2px;
+      top: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      transition: left 0.2s;
+    }
+    .toggle-switch.on {
+      background: var(--accent);
+    }
+    .toggle-switch.on::after {
+      left: 18px;
+    }
+    .toggle-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .split-total-label {
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+    .split-total-match  { color: var(--success); }
+    .split-total-mismatch { color: var(--danger); }
+
+    /* Image preview */
+    .img-preview {
+      max-height: 160px;
+      border-radius: var(--radius);
+      object-fit: contain;
+      display: block;
+      margin-top: 10px;
+      border: 1px solid var(--border);
+    }
+
+    /* Alert inline */
+    .inline-alert {
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 13px;
+      margin-bottom: 14px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .inline-alert svg { flex-shrink: 0; margin-top: 1px; }
+    .inline-alert--warning {
+      background: #fffbeb;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    .inline-alert--success {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+    }
+    .inline-alert--danger {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    /* Loading inline */
+    .loading-inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 12px 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<header class="topbar">
+  <span class="topbar-title">Billing</span>
+</header>
+
+<!-- Page content -->
+<main class="page-content">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="generateBill">Generate Bill</button>
+    <button class="tab-btn"        data-tab="recordPayment">Record Payment</button>
+  </div>
+
+  <!-- ═══════════════════ TAB 1 — Generate Bill ═══════════════════ -->
+  <div class="tab-pane active" id="tab-generateBill">
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" for="gbMonth">Billing Month</label>
+        <input class="form-input" id="gbMonth" type="month" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="gbTenant">Tenant</label>
+        <select class="form-select" id="gbTenant">
+          <option value="">All Active Tenants</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Tenant info card (shown when individual selected) -->
+    <div id="gbInfoWrap" class="hidden">
+      <div id="gbLoadingInfo" class="loading-inline hidden">
+        <div class="spinner" style="width:16px;height:16px;"></div>
+        Loading balance and readings…
+      </div>
+      <div id="gbInfoCard" class="hidden">
+        <div class="info-card" id="gbBalanceCard"></div>
+        <div id="gbReadingsInfo"></div>
+      </div>
+    </div>
+
+    <!-- Generate result alert -->
+    <div id="gbAlert" class="hidden" style="margin-bottom:14px;"></div>
+
+    <button class="btn btn--accent btn--full" id="gbBtn">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      Generate Bill
+    </button>
+
+  </div><!-- /tab-generateBill -->
+
+  <!-- ═══════════════════ TAB 2 — Record Payment ═══════════════════ -->
+  <div class="tab-pane" id="tab-recordPayment">
+
+    <!-- Step 1: Tenant selector -->
+    <div class="form-group" style="margin-bottom:20px;">
+      <label class="form-label" for="rpTenant">Tenant</label>
+      <select class="form-select" id="rpTenant">
+        <option value="">Select tenant…</option>
+      </select>
+    </div>
+
+    <!-- Step 2: Balance card -->
+    <div id="rpBalanceWrap" class="hidden">
+      <div id="rpLoadingBal" class="loading-inline hidden">
+        <div class="spinner" style="width:16px;height:16px;"></div>
+        Loading balance…
+      </div>
+      <div id="rpBalanceCard" class="info-card hidden"></div>
+      <div id="rpBalanceStatus" class="hidden" style="margin-bottom:14px;"></div>
+    </div>
+
+    <!-- Step 3: Payment form -->
+    <div id="rpPaymentForm" class="hidden">
+
+      <!-- Amount -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" for="rpTotal">Total Amount (₱)</label>
+        <input class="form-input" id="rpTotal" type="number" min="0.01" step="0.01" placeholder="0.00" required>
+      </div>
+
+      <!-- Auto-split -->
+      <div style="margin-bottom:4px;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">
+          Auto-applied: Rent first → Electric → Water
+        </div>
+        <div class="split-row">
+          <label for="rpRent">Rent</label>
+          <input class="form-input" id="rpRent"  type="number" min="0" step="0.01" value="0.00" disabled>
+        </div>
+        <div class="split-row">
+          <label for="rpElec">Electric</label>
+          <input class="form-input" id="rpElec"  type="number" min="0" step="0.01" value="0.00" disabled>
+        </div>
+        <div class="split-row">
+          <label for="rpWater">Water</label>
+          <input class="form-input" id="rpWater" type="number" min="0" step="0.01" value="0.00" disabled>
+        </div>
+      </div>
+
+      <!-- Override toggle -->
+      <label class="override-toggle" id="overrideToggle">
+        <div class="toggle-switch" id="overrideSwitchEl"></div>
+        <span class="toggle-label">Override split manually</span>
+      </label>
+
+      <div id="splitTotalLabel" class="split-total-label hidden"></div>
+
+      <!-- Payment mode -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Payment Mode</label>
+        <div class="pill-group" id="paymentModeGroup">
+          <button class="pill-btn active" data-mode="GCash">GCash</button>
+          <button class="pill-btn" data-mode="Cash">Cash</button>
+          <button class="pill-btn" data-mode="Bank Transfer">Bank Transfer</button>
+        </div>
+      </div>
+
+      <!-- Reference number -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" id="refLabel">GCash Reference No.</label>
+        <input class="form-input" id="rpRef" type="text" placeholder="">
+      </div>
+
+      <!-- Screenshot upload -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label">Proof of Payment (optional)</label>
+        <input class="form-input" id="rpProof" type="file" accept="image/*" style="padding:6px;">
+        <img id="rpProofPreview" class="img-preview hidden" alt="Payment proof preview">
+      </div>
+
+      <!-- Notes -->
+      <div class="form-group" style="margin-bottom:20px;">
+        <label class="form-label">Notes (optional)</label>
+        <textarea class="form-input" id="rpNotes" rows="3" placeholder="Any additional notes…" style="resize:vertical;"></textarea>
+      </div>
+
+      <!-- Error alert -->
+      <div id="rpAlert" class="hidden" style="margin-bottom:14px;"></div>
+
+      <!-- Confirm button -->
+      <button class="btn btn--accent btn--full" id="rpBtn" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg>
+        Confirm Payment
+      </button>
+
+    </div><!-- /rpPaymentForm -->
+
+  </div><!-- /tab-recordPayment -->
+
+</main>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <a href="./index.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="./tenants.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    <span>Tenants</span>
+  </a>
+  <a href="./billing.html" class="bottom-nav-item active">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    <span>Billing</span>
+  </a>
+  <a href="./ledger.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <span>Ledger</span>
+  </a>
+  <button class="bottom-nav-item" id="moreBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
+<!-- More drawer -->
+<div class="drawer-overlay" id="moreDrawer">
+  <div class="drawer" role="dialog" aria-label="More options">
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">More</div>
+    <a href="./units.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="drawer-item-label">Units</span>
+    </a>
+    <a href="./utilities.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span class="drawer-item-label">Utilities</span>
+    </a>
+    <a href="./expenses.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <span class="drawer-item-label">Expenses</span>
+    </a>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../assets/config.js"></script>
+<script>
+(function () {
+  // Auth guard
+  if (!localStorage.getItem('adminToken')) {
+    window.location.href = '../index.html';
+    return;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────
+
+  function peso(n) {
+    return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function showToast(msg, type) {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    const isOk = type === 'success';
+    t.className = 'alert alert--' + (isOk ? 'success' : 'danger') + ' toast';
+    t.innerHTML = isOk
+      ? '<svg viewBox="0 0 24 24" width="20" height="20"><polyline points="20 6 9 17 4 12"/></svg><span>' + escHtml(msg) + '</span>'
+      : '<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>' + escHtml(msg) + '</span>';
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  function balanceClass(n) {
+    if (n > 0)  return 'bal-owed';
+    if (n < 0)  return 'bal-credit';
+    return 'bal-zero';
+  }
+
+  function balanceText(n) {
+    if (n < 0)  return peso(-n) + ' credit';
+    return peso(n);
+  }
+
+  function setAlert(id, type, html) {
+    const el = document.getElementById(id);
+    el.className = 'inline-alert inline-alert--' + type;
+    el.innerHTML = html;
+    el.classList.remove('hidden');
+  }
+
+  function clearAlert(id) {
+    const el = document.getElementById(id);
+    el.classList.add('hidden');
+    el.innerHTML = '';
+  }
+
+  function postJSON(payload) {
+    return fetch(CONFIG.APPS_SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body:    JSON.stringify(payload)
+    }).then(r => r.json());
+  }
+
+  // ── More drawer ────────────────────────────────────────────────
+
+  const moreDrawer = document.getElementById('moreDrawer');
+  document.getElementById('moreBtn').addEventListener('click', () => moreDrawer.classList.add('open'));
+  moreDrawer.addEventListener('click', e => { if (e.target === moreDrawer) moreDrawer.classList.remove('open'); });
+
+  // ── Tabs ───────────────────────────────────────────────────────
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── State ──────────────────────────────────────────────────────
+
+  let allTenants = [];
+  let rpBalance  = null;
+  let overrideOn = false;
+  let paymentMode = 'GCash';
+
+  // Default billing month = current YYYY-MM
+  const now = new Date();
+  const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  document.getElementById('gbMonth').value = currentMonth;
+
+  // ── Load tenants ───────────────────────────────────────────────
+
+  async function loadTenants() {
+    try {
+      const res  = await fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants');
+      const json = await res.json();
+      if (!json.success) return;
+      allTenants = json.data || [];
+
+      // Populate GB tenant dropdown
+      const gbSel = document.getElementById('gbTenant');
+      allTenants.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.TenantID;
+        opt.textContent = t.Name + ' — ' + [t.UnitName, t.BuildingName].filter(Boolean).join(' · ');
+        gbSel.appendChild(opt);
+      });
+
+      // Populate RP tenant dropdown
+      const rpSel = document.getElementById('rpTenant');
+      allTenants.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.TenantID;
+        opt.textContent = t.Name + ' — ' + [t.UnitName, t.BuildingName].filter(Boolean).join(' · ');
+        rpSel.appendChild(opt);
+      });
+    } catch (_) {}
+  }
+
+  loadTenants();
+
+  // ── Generate Bill — tenant select ─────────────────────────────
+
+  document.getElementById('gbTenant').addEventListener('change', async function () {
+    const tenantId = this.value;
+    clearAlert('gbAlert');
+
+    if (!tenantId) {
+      document.getElementById('gbInfoWrap').classList.add('hidden');
+      return;
+    }
+
+    document.getElementById('gbInfoWrap').classList.remove('hidden');
+    document.getElementById('gbLoadingInfo').classList.remove('hidden');
+    document.getElementById('gbInfoCard').classList.add('hidden');
+
+    const tenant = allTenants.find(t => t.TenantID === tenantId);
+
+    try {
+      const [balRes, readRes] = await Promise.all([
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBalance&tenantId=' + encodeURIComponent(tenantId)),
+        tenant
+          ? fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&unitId=' + encodeURIComponent(tenant.UnitID) + '&billingMonth=' + encodeURIComponent(document.getElementById('gbMonth').value))
+          : Promise.resolve({ json: () => ({ success: false }) })
+      ]);
+
+      const balJson  = await balRes.json();
+      const readJson = tenant ? await readRes.json() : { success: false };
+
+      document.getElementById('gbLoadingInfo').classList.add('hidden');
+      document.getElementById('gbInfoCard').classList.remove('hidden');
+
+      // Balance card
+      if (balJson.success) {
+        const b = balJson.data;
+        const total = b.total || 0;
+        let statusHtml = '';
+        if (total < 0) {
+          statusHtml = '<div class="inline-alert inline-alert--success" style="margin-top:8px;">'
+            + '<svg viewBox="0 0 24 24" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>'
+            + 'Tenant has ' + peso(-total) + ' credit — will be applied to bill</div>';
+        } else if (total === 0) {
+          statusHtml = '<div class="inline-alert inline-alert--success" style="margin-top:8px;">'
+            + '<svg viewBox="0 0 24 24" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>'
+            + 'No prior balance</div>';
+        }
+
+        document.getElementById('gbBalanceCard').innerHTML =
+          row('Rent balance',  balanceHtml(b.rent))
+        + row('Elec balance',  balanceHtml(b.elec))
+        + row('Water balance', balanceHtml(b.water))
+        + '<hr class="info-card-divider">'
+        + '<div class="info-card-row info-card-total"><span class="info-card-label">Total</span><span class="info-card-value ' + balanceClass(total) + '">' + balanceText(total) + '</span></div>'
+        + statusHtml;
+      }
+
+      // Readings info
+      const readingsEl = document.getElementById('gbReadingsInfo');
+      if (readJson.success && readJson.data && readJson.data.length > 0) {
+        const r = readJson.data[0];
+        readingsEl.innerHTML = '<div class="inline-alert inline-alert--success" style="margin-bottom:0;">'
+          + '<svg viewBox="0 0 24 24" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>'
+          + 'Electric: ' + escHtml(String(r.ElecKwh || 0)) + ' kWh (' + peso(r.ElecCharge) + ') · Water: '
+          + escHtml(String(r.WaterCubic || 0)) + ' m³ (' + peso(r.WaterCharge) + ')</div>';
+      } else {
+        readingsEl.innerHTML = '<div class="inline-alert inline-alert--warning" style="margin-bottom:0;">'
+          + '<svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+          + 'No utility reading for this month — bill will not include electric or water charges</div>';
+      }
+
+    } catch (err) {
+      document.getElementById('gbLoadingInfo').classList.add('hidden');
+    }
+  });
+
+  // Re-fetch readings when month changes for currently-selected tenant
+  document.getElementById('gbMonth').addEventListener('change', function () {
+    const tenantId = document.getElementById('gbTenant').value;
+    if (tenantId) {
+      document.getElementById('gbTenant').dispatchEvent(new Event('change'));
+    }
+  });
+
+  function row(label, valueHtml) {
+    return '<div class="info-card-row"><span class="info-card-label">' + escHtml(label) + '</span><span class="info-card-value">' + valueHtml + '</span></div>';
+  }
+
+  function balanceHtml(n) {
+    return '<span class="' + balanceClass(n) + '">' + balanceText(n) + '</span>';
+  }
+
+  // ── Generate Bill — submit ─────────────────────────────────────
+
+  document.getElementById('gbBtn').addEventListener('click', async function () {
+    const billingMonth = document.getElementById('gbMonth').value;
+    const tenantId     = document.getElementById('gbTenant').value;
+    if (!billingMonth) { setAlert('gbAlert', 'danger', warnIcon() + 'Please select a billing month.'); return; }
+
+    this.disabled = true;
+    this.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Generating…';
+    clearAlert('gbAlert');
+
+    try {
+      const payload = {
+        action:       'generateBill',
+        adminToken:   localStorage.getItem('adminToken'),
+        billingMonth: billingMonth
+      };
+      if (tenantId) payload.tenantId = tenantId;
+
+      const json = await postJSON(payload);
+
+      if (!json.success) {
+        if (json.error && json.error.toLowerCase().includes('duplicate')) {
+          setAlert('gbAlert', 'warning', warnIcon() + 'Bill already exists for this tenant this month — skipped');
+        } else {
+          setAlert('gbAlert', 'danger', dangerIcon() + escHtml(json.error || 'Failed to generate bill'));
+        }
+      } else {
+        const d = json.data;
+        let msg = 'Bill generated for ' + d.billsCreated + ' tenant(s) for ' + billingMonth + '.';
+        if (d.skipped > 0) msg += ' ' + d.skipped + ' already billed (skipped).';
+        setAlert('gbAlert', 'success', checkIcon() + msg);
+        // Reload info card if single tenant
+        if (tenantId) document.getElementById('gbTenant').dispatchEvent(new Event('change'));
+      }
+    } catch (err) {
+      setAlert('gbAlert', 'danger', dangerIcon() + (err.message || 'Network error'));
+    } finally {
+      this.disabled = false;
+      this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg> Generate Bill';
+    }
+  });
+
+  // ── Record Payment — tenant select ────────────────────────────
+
+  document.getElementById('rpTenant').addEventListener('change', async function () {
+    const tenantId = this.value;
+    clearAlert('rpAlert');
+    resetPaymentForm();
+
+    if (!tenantId) {
+      document.getElementById('rpBalanceWrap').classList.add('hidden');
+      document.getElementById('rpPaymentForm').classList.add('hidden');
+      return;
+    }
+
+    document.getElementById('rpBalanceWrap').classList.remove('hidden');
+    document.getElementById('rpLoadingBal').classList.remove('hidden');
+    document.getElementById('rpBalanceCard').classList.add('hidden');
+    document.getElementById('rpBalanceStatus').classList.add('hidden');
+    document.getElementById('rpPaymentForm').classList.add('hidden');
+
+    try {
+      const res  = await fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBalance&tenantId=' + encodeURIComponent(tenantId));
+      const json = await res.json();
+
+      document.getElementById('rpLoadingBal').classList.add('hidden');
+
+      if (!json.success) throw new Error(json.error || 'Failed to load balance');
+
+      rpBalance = json.data;
+      renderBalanceCard(rpBalance);
+
+      const total = rpBalance.total || 0;
+      const statusEl = document.getElementById('rpBalanceStatus');
+
+      if (total <= 0) {
+        statusEl.innerHTML = total < 0
+          ? '<div class="inline-alert inline-alert--success">' + checkIcon() + 'Tenant has ' + peso(-total) + ' credit</div>'
+          : '<div class="inline-alert inline-alert--success">' + checkIcon() + 'No outstanding balance</div>';
+        statusEl.classList.remove('hidden');
+        document.getElementById('rpPaymentForm').classList.add('hidden');
+      } else {
+        statusEl.classList.add('hidden');
+        document.getElementById('rpPaymentForm').classList.remove('hidden');
+        autoSplit(total, rpBalance);
+        validateRpForm();
+      }
+
+    } catch (err) {
+      document.getElementById('rpLoadingBal').classList.add('hidden');
+      document.getElementById('rpBalanceStatus').innerHTML =
+        '<div class="inline-alert inline-alert--danger">' + dangerIcon() + escHtml(err.message) + '</div>';
+      document.getElementById('rpBalanceStatus').classList.remove('hidden');
+    }
+  });
+
+  function renderBalanceCard(b) {
+    const el = document.getElementById('rpBalanceCard');
+    const total = b.total || 0;
+    el.innerHTML =
+      row('Rent due',  balanceHtml(b.rent))
+    + row('Elec due',  balanceHtml(b.elec))
+    + row('Water due', balanceHtml(b.water))
+    + '<hr class="info-card-divider">'
+    + '<div class="info-card-row info-card-total"><span class="info-card-label">Total due</span>'
+    + '<span class="info-card-value ' + balanceClass(total) + '">' + balanceText(total) + '</span></div>';
+    el.classList.remove('hidden');
+  }
+
+  function autoSplit(totalPaid, balance) {
+    const rent  = Math.min(Math.max(balance.rent,  0), totalPaid);
+    const elec  = Math.min(Math.max(balance.elec,  0), Math.max(totalPaid - rent, 0));
+    const water = Math.min(Math.max(balance.water, 0), Math.max(totalPaid - rent - elec, 0));
+    document.getElementById('rpRent').value  = rent.toFixed(2);
+    document.getElementById('rpElec').value  = elec.toFixed(2);
+    document.getElementById('rpWater').value = water.toFixed(2);
+    updateSplitTotal();
+  }
+
+  // Total field → auto-split
+  document.getElementById('rpTotal').addEventListener('input', function () {
+    const total = parseFloat(this.value) || 0;
+    if (!overrideOn && rpBalance) {
+      autoSplit(total, rpBalance);
+    } else {
+      updateSplitTotal();
+    }
+    validateRpForm();
+  });
+
+  // Override split inputs
+  ['rpRent','rpElec','rpWater'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      updateSplitTotal();
+      validateRpForm();
+    });
+  });
+
+  function updateSplitTotal() {
+    if (!overrideOn) {
+      document.getElementById('splitTotalLabel').classList.add('hidden');
+      return;
+    }
+    const total = parseFloat(document.getElementById('rpTotal').value) || 0;
+    const splitSum = (parseFloat(document.getElementById('rpRent').value)  || 0)
+                   + (parseFloat(document.getElementById('rpElec').value)  || 0)
+                   + (parseFloat(document.getElementById('rpWater').value) || 0);
+    const match = Math.abs(splitSum - total) < 0.01;
+    const lbl = document.getElementById('splitTotalLabel');
+    lbl.classList.remove('hidden');
+    lbl.className = 'split-total-label ' + (match ? 'split-total-match' : 'split-total-mismatch');
+    lbl.textContent = peso(splitSum) + ' of ' + peso(total) + ' entered';
+  }
+
+  // Override toggle
+  document.getElementById('overrideToggle').addEventListener('click', function () {
+    overrideOn = !overrideOn;
+    const sw = document.getElementById('overrideSwitchEl');
+    sw.classList.toggle('on', overrideOn);
+    ['rpRent','rpElec','rpWater'].forEach(id => {
+      document.getElementById(id).disabled = !overrideOn;
+    });
+    if (!overrideOn) {
+      document.getElementById('splitTotalLabel').classList.add('hidden');
+      const total = parseFloat(document.getElementById('rpTotal').value) || 0;
+      if (rpBalance) autoSplit(total, rpBalance);
+    } else {
+      updateSplitTotal();
+    }
+    validateRpForm();
+  });
+
+  // Payment mode pills
+  document.getElementById('paymentModeGroup').addEventListener('click', function (e) {
+    const btn = e.target.closest('.pill-btn');
+    if (!btn) return;
+    document.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    paymentMode = btn.dataset.mode;
+    updateRefLabel();
+    validateRpForm();
+  });
+
+  function updateRefLabel() {
+    const label = document.getElementById('refLabel');
+    const input = document.getElementById('rpRef');
+    if (paymentMode === 'GCash') {
+      label.textContent = 'GCash Reference No.';
+      input.placeholder = '13-digit ref number';
+      input.required = true;
+    } else if (paymentMode === 'Bank Transfer') {
+      label.textContent = 'Bank Reference No.';
+      input.placeholder = 'Transaction reference';
+      input.required = true;
+    } else {
+      label.textContent = 'Receipt / OR No. (optional)';
+      input.placeholder = 'e.g. OR-0001';
+      input.required = false;
+    }
+  }
+
+  document.getElementById('rpRef').addEventListener('input', validateRpForm);
+
+  // Proof of payment preview
+  document.getElementById('rpProof').addEventListener('change', function () {
+    const preview = document.getElementById('rpProofPreview');
+    if (this.files && this.files[0]) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.src = e.target.result;
+        preview.classList.remove('hidden');
+      };
+      reader.readAsDataURL(this.files[0]);
+    } else {
+      preview.classList.add('hidden');
+      preview.src = '';
+    }
+  });
+
+  function validateRpForm() {
+    const tenantId = document.getElementById('rpTenant').value;
+    const total    = parseFloat(document.getElementById('rpTotal').value) || 0;
+    const ref      = document.getElementById('rpRef').value.trim();
+    const refRequired = paymentMode === 'GCash' || paymentMode === 'Bank Transfer';
+
+    let splitOk = true;
+    if (overrideOn) {
+      const splitSum = (parseFloat(document.getElementById('rpRent').value)  || 0)
+                     + (parseFloat(document.getElementById('rpElec').value)  || 0)
+                     + (parseFloat(document.getElementById('rpWater').value) || 0);
+      splitOk = Math.abs(splitSum - total) < 0.01;
+    }
+
+    const ok = tenantId && total > 0 && (!refRequired || ref) && splitOk;
+    document.getElementById('rpBtn').disabled = !ok;
+  }
+
+  function resetPaymentForm() {
+    rpBalance = null;
+    overrideOn = false;
+    document.getElementById('overrideSwitchEl').classList.remove('on');
+    ['rpRent','rpElec','rpWater'].forEach(id => {
+      document.getElementById(id).disabled = true;
+      document.getElementById(id).value = '0.00';
+    });
+    document.getElementById('rpTotal').value = '';
+    document.getElementById('rpRef').value = '';
+    document.getElementById('rpNotes').value = '';
+    document.getElementById('rpProofPreview').classList.add('hidden');
+    document.getElementById('rpProof').value = '';
+    document.getElementById('splitTotalLabel').classList.add('hidden');
+    clearAlert('rpAlert');
+    document.querySelectorAll('.pill-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === 'GCash');
+    });
+    paymentMode = 'GCash';
+    updateRefLabel();
+    document.getElementById('rpBtn').disabled = true;
+  }
+
+  // ── Record Payment — submit ───────────────────────────────────
+
+  document.getElementById('rpBtn').addEventListener('click', async function () {
+    const tenantId    = document.getElementById('rpTenant').value;
+    const totalPaid   = parseFloat(document.getElementById('rpTotal').value) || 0;
+    const rentAmount  = parseFloat(document.getElementById('rpRent').value)  || 0;
+    const elecAmount  = parseFloat(document.getElementById('rpElec').value)  || 0;
+    const waterAmount = parseFloat(document.getElementById('rpWater').value) || 0;
+    const referenceNo = document.getElementById('rpRef').value.trim();
+    const notes       = document.getElementById('rpNotes').value.trim();
+    const proofFile   = document.getElementById('rpProof').files[0];
+
+    this.disabled = true;
+    this.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Processing…';
+    clearAlert('rpAlert');
+
+    try {
+      // Upload proof first if provided
+      let proofNotes = notes;
+      if (proofFile) {
+        const base64 = await fileToBase64(proofFile);
+        const upRes  = await postJSON({
+          action:      'uploadProof',
+          adminToken:  localStorage.getItem('adminToken'),
+          base64Image: base64,
+          fileName:    proofFile.name || ('proof-' + Date.now() + '.jpg')
+        });
+        if (upRes.success && upRes.data && upRes.data.driveUrl) {
+          proofNotes = (proofNotes ? proofNotes + ' | ' : '') + 'Proof: ' + upRes.data.driveUrl;
+        }
+      }
+
+      const json = await postJSON({
+        action:       'recordPayment',
+        adminToken:   localStorage.getItem('adminToken'),
+        tenantId:     tenantId,
+        billingMonth: currentMonth,
+        totalPaid:    totalPaid,
+        rentAmount:   rentAmount,
+        elecAmount:   elecAmount,
+        waterAmount:  waterAmount,
+        paymentMode:  paymentMode,
+        referenceNo:  referenceNo,
+        notes:        proofNotes
+      });
+
+      if (!json.success) throw new Error(json.error || 'Failed to record payment');
+
+      const tenant = allTenants.find(t => t.TenantID === tenantId);
+      showToast('Payment recorded. Receipt sent to ' + (tenant ? tenant.Email || tenant.Name : 'tenant') + '.', 'success');
+
+      // Reset form and reload balance
+      const sel = document.getElementById('rpTenant');
+      sel.value = '';
+      resetPaymentForm();
+      document.getElementById('rpBalanceWrap').classList.add('hidden');
+      document.getElementById('rpPaymentForm').classList.add('hidden');
+
+    } catch (err) {
+      setAlert('rpAlert', 'danger', dangerIcon() + escHtml(err.message || 'Failed to record payment'));
+    } finally {
+      this.disabled = false;
+      this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg> Confirm Payment';
+      validateRpForm();
+    }
+  });
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => {
+        // Strip data URL prefix: "data:image/jpeg;base64,"
+        const result = e.target.result;
+        const comma  = result.indexOf(',');
+        resolve(comma !== -1 ? result.substring(comma + 1) : result);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ── Icon helpers ───────────────────────────────────────────────
+
+  function checkIcon() {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" style="flex-shrink:0;margin-right:6px;"><polyline points="20 6 9 17 4 12"/></svg>';
+  }
+  function warnIcon() {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" style="flex-shrink:0;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+  }
+  function dangerIcon() {
+    return '<svg viewBox="0 0 24 24" width="16" height="16" style="flex-shrink:0;margin-right:6px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+  }
+
+  updateRefLabel();
+})();
+</script>
+</body>
+</html>
