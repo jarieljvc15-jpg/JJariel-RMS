@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Units — JJ Apartment RMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .topbar-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 17px;
+      color: #fff;
+    }
+    .building-section { margin-top: 24px; }
+    .building-heading {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      padding: 0 2px;
+    }
+    tbody tr { cursor: pointer; }
+    /* Slide-up panel */
+    .panel-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: none;
+      align-items: flex-end;
+    }
+    .panel-overlay.open { display: flex; }
+    .panel {
+      background: var(--white);
+      width: 100%;
+      max-height: 90vh;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-primary);
+    }
+    .panel-close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+    .panel-close:hover { background: var(--navy-50); }
+    .panel-close svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .panel-body {
+      overflow-y: auto;
+      padding: 16px;
+      flex: 1;
+    }
+    /* Detail rows */
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { font-weight: 600; color: var(--text-secondary); }
+    .detail-value { color: var(--text-primary); text-align: right; }
+    /* Combined field toggle */
+    #combinedGroup { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<header class="topbar">
+  <span class="topbar-title">Units</span>
+  <button class="btn btn--accent btn--sm" id="addUnitBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Unit
+  </button>
+</header>
+
+<!-- Page content -->
+<main class="page-content">
+
+  <div id="loadingState" class="flex items-center gap-8" style="justify-content:center;padding:64px 0;">
+    <div class="spinner"></div>
+    <span class="text-muted">Loading units…</span>
+  </div>
+
+  <div id="errorState" class="hidden mt-16">
+    <div class="alert alert--danger">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <span class="alert-title">Failed to load units</span>
+        <span id="errorMsg">Please check your connection.</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="unitsContent" class="hidden"></div>
+
+</main>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <a href="./index.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="./tenants.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    <span>Tenants</span>
+  </a>
+  <a href="./billing.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    <span>Billing</span>
+  </a>
+  <a href="./utilities.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+    <span>Utilities</span>
+  </a>
+  <button class="bottom-nav-item active" id="moreBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
+<!-- More drawer -->
+<div class="drawer-overlay" id="moreDrawer">
+  <div class="drawer" role="dialog" aria-label="More options">
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">More</div>
+    <a href="./units.html" class="drawer-item" style="background:var(--accent-light);">
+      <svg viewBox="0 0 24 24" aria-hidden="true" style="stroke:var(--accent-dark);"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="drawer-item-label" style="color:var(--accent-dark);">Units</span>
+    </a>
+    <a href="./expenses.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <span class="drawer-item-label">Expenses</span>
+    </a>
+    <a href="./ledger.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <span class="drawer-item-label">Ledger</span>
+    </a>
+  </div>
+</div>
+
+<!-- Add Unit slide-up panel -->
+<div class="panel-overlay" id="addUnitPanel">
+  <div class="panel" role="dialog" aria-label="Add Unit">
+    <div class="panel-header">
+      <span class="panel-title">Add Unit</span>
+      <button class="panel-close" id="addUnitClose">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="panel-body">
+      <form id="addUnitForm" class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="fBuilding">Building</label>
+          <select class="form-select" id="fBuilding" required>
+            <option value="">Select building…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fUnitName">Unit Name</label>
+          <input class="form-input" id="fUnitName" type="text" placeholder="e.g. Room 1A" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fBillingType">Billing Type</label>
+          <select class="form-select" id="fBillingType" required>
+            <option value="">Select type…</option>
+            <option value="Separate">Separate</option>
+            <option value="Combined">Combined</option>
+          </select>
+        </div>
+        <div class="form-group" id="combinedGroup">
+          <label class="form-label" for="fCombinedWith">Combined With (Unit ID)</label>
+          <input class="form-input" id="fCombinedWith" type="text" placeholder="e.g. U002">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fMonthlyRate">Monthly Rate (₱)</label>
+          <input class="form-input" id="fMonthlyRate" type="number" min="0" step="1" placeholder="0" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fStatus">Status</label>
+          <select class="form-select" id="fStatus" required>
+            <option value="Vacant">Vacant</option>
+            <option value="Occupied">Occupied</option>
+          </select>
+        </div>
+        <div class="form-group form-group--full" style="margin-top:8px;">
+          <button type="submit" class="btn btn--accent btn--full" id="addUnitSubmit">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Unit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Unit detail slide-up panel -->
+<div class="panel-overlay" id="unitDetailPanel">
+  <div class="panel" role="dialog" aria-label="Unit Details">
+    <div class="panel-header">
+      <span class="panel-title" id="detailPanelTitle">Unit Details</span>
+      <button class="panel-close" id="unitDetailClose">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="panel-body">
+      <div id="detailBody"></div>
+      <div style="margin-top:20px;">
+        <button class="btn btn--outline btn--full" id="editUnitBtn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit Unit (coming soon)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../assets/config.js"></script>
+<script>
+(function () {
+  if (!localStorage.getItem('adminToken')) {
+    window.location.href = '../index.html';
+    return;
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────
+
+  function peso(n) {
+    return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function showToast(msg, type) {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    const isOk = type === 'success';
+    t.className = 'alert alert--' + (isOk ? 'success' : 'danger') + ' toast';
+    t.innerHTML = isOk
+      ? '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>' + msg + '</span>'
+      : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>' + msg + '</span>';
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  function statusBadge(s) {
+    if (s === 'Occupied') return '<span class="badge badge--occupied"><span class="badge-dot"></span>' + escHtml(s) + '</span>';
+    return '<span class="badge badge--vacant"><span class="badge-dot"></span>' + escHtml(s) + '</span>';
+  }
+
+  // ── More drawer ───────────────────────────────────────────────
+
+  const moreDrawer = document.getElementById('moreDrawer');
+  document.getElementById('moreBtn').addEventListener('click', () => moreDrawer.classList.add('open'));
+  moreDrawer.addEventListener('click', (e) => { if (e.target === moreDrawer) moreDrawer.classList.remove('open'); });
+
+  // ── Panel helpers ─────────────────────────────────────────────
+
+  function openPanel(id) { document.getElementById(id).classList.add('open'); }
+  function closePanel(id) { document.getElementById(id).classList.remove('open'); }
+
+  document.getElementById('addUnitClose').addEventListener('click', () => closePanel('addUnitPanel'));
+  document.getElementById('addUnitPanel').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('addUnitPanel')) closePanel('addUnitPanel');
+  });
+
+  document.getElementById('unitDetailClose').addEventListener('click', () => closePanel('unitDetailPanel'));
+  document.getElementById('unitDetailPanel').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('unitDetailPanel')) closePanel('unitDetailPanel');
+  });
+
+  document.getElementById('addUnitBtn').addEventListener('click', () => openPanel('addUnitPanel'));
+
+  // Toggle CombinedWith field
+  document.getElementById('fBillingType').addEventListener('change', function () {
+    document.getElementById('combinedGroup').style.display =
+      this.value === 'Combined' ? 'flex' : 'none';
+  });
+
+  // ── State ─────────────────────────────────────────────────────
+
+  let buildings = [];
+  let units     = [];
+
+  // ── Fetch ─────────────────────────────────────────────────────
+
+  async function loadData() {
+    const loading = document.getElementById('loadingState');
+    const error   = document.getElementById('errorState');
+    const content = document.getElementById('unitsContent');
+
+    loading.classList.remove('hidden');
+    error.classList.add('hidden');
+    content.classList.add('hidden');
+
+    try {
+      const [uRes, bRes] = await Promise.all([
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getUnits'),
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBuildings')
+      ]);
+      const uJson = await uRes.json();
+      const bJson = await bRes.json();
+      if (!uJson.success) throw new Error(uJson.error || 'Failed to load units');
+      if (!bJson.success) throw new Error(bJson.error || 'Failed to load buildings');
+
+      units     = uJson.data;
+      buildings = bJson.data;
+
+      populateBuildingDropdown();
+      renderUnits();
+
+      loading.classList.add('hidden');
+      content.classList.remove('hidden');
+    } catch (err) {
+      loading.classList.add('hidden');
+      error.classList.remove('hidden');
+      document.getElementById('errorMsg').textContent = err.message;
+    }
+  }
+
+  function populateBuildingDropdown() {
+    const sel = document.getElementById('fBuilding');
+    buildings.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.BuildingID;
+      opt.textContent = b.BuildingName;
+      sel.appendChild(opt);
+    });
+  }
+
+  function renderUnits() {
+    const content = document.getElementById('unitsContent');
+
+    // Group by building
+    const groups = {};
+    units.forEach(u => {
+      const key = u.BuildingID || 'Unknown';
+      if (!groups[key]) groups[key] = { name: u.BuildingName || key, units: [] };
+      groups[key].units.push(u);
+    });
+
+    if (Object.keys(groups).length === 0) {
+      content.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><div style="font-weight:600;color:var(--text-secondary);">No units yet</div><div>Add your first unit to get started.</div></div>';
+      return;
+    }
+
+    content.innerHTML = Object.entries(groups).map(([, group]) => `
+      <div class="building-section">
+        <div class="building-heading">${escHtml(group.name)}</div>
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Unit Name</th>
+                  <th>Type</th>
+                  <th>Rate</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${group.units.map(u => `
+                  <tr data-unit-id="${escHtml(u.UnitID)}">
+                    <td class="col-mono">${escHtml(u.UnitID)}</td>
+                    <td class="col-name">${escHtml(u.UnitName)}</td>
+                    <td>${escHtml(u.BillingType)}</td>
+                    <td class="col-amount">${peso(u.MonthlyRate)}</td>
+                    <td>${statusBadge(u.Status)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Row tap → detail
+    content.querySelectorAll('tbody tr').forEach(row => {
+      row.addEventListener('click', () => {
+        const unit = units.find(u => u.UnitID === row.dataset.unitId);
+        if (unit) showUnitDetail(unit);
+      });
+    });
+  }
+
+  function showUnitDetail(unit) {
+    document.getElementById('detailPanelTitle').textContent = unit.UnitName || 'Unit Details';
+
+    const rows = [
+      ['Unit ID',      unit.UnitID],
+      ['Unit Name',    unit.UnitName],
+      ['Building',     unit.BuildingName],
+      ['Billing Type', unit.BillingType],
+      ['Combined With',unit.CombinedWith || '—'],
+      ['Monthly Rate', peso(unit.MonthlyRate)],
+      ['Status',       unit.Status],
+    ];
+
+    document.getElementById('detailBody').innerHTML = rows.map(([label, val]) =>
+      `<div class="detail-row">
+        <span class="detail-label">${escHtml(label)}</span>
+        <span class="detail-value">${label === 'Status' ? statusBadge(val) : escHtml(val)}</span>
+      </div>`
+    ).join('');
+
+    openPanel('unitDetailPanel');
+  }
+
+  // ── Add Unit form ─────────────────────────────────────────────
+
+  document.getElementById('addUnitForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const btn = document.getElementById('addUnitSubmit');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const payload = {
+      action:       'addUnit',
+      adminToken:   localStorage.getItem('adminToken'),
+      buildingId:   document.getElementById('fBuilding').value,
+      unitName:     document.getElementById('fUnitName').value.trim(),
+      billingType:  document.getElementById('fBillingType').value,
+      combinedWith: document.getElementById('fCombinedWith').value.trim(),
+      monthlyRate:  parseFloat(document.getElementById('fMonthlyRate').value) || 0,
+      status:       document.getElementById('fStatus').value,
+    };
+
+    try {
+      const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Failed to add unit');
+      showToast('Unit added successfully!', 'success');
+      closePanel('addUnitPanel');
+      this.reset();
+      document.getElementById('combinedGroup').style.display = 'none';
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to add unit', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Unit';
+    }
+  });
+
+  // Edit stub
+  document.getElementById('editUnitBtn').addEventListener('click', () => {
+    showToast('Edit unit — coming in a future step.', 'error');
+  });
+
+  loadData();
+})();
+</script>
+</body>
+</html>
