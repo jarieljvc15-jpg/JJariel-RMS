@@ -355,7 +355,8 @@
 
   function balanceDisplay(b) {
     if (b > 0) return '<span class="col-amount col-amount--delinquent">' + peso(b) + '</span>';
-    return '<span class="col-amount" style="color:var(--success);">' + peso(b) + '</span>';
+    if (b < 0) return '<span class="col-amount" style="color:var(--success);">' + peso(-b) + ' credit</span>';
+    return '<span class="col-amount">' + peso(0) + '</span>';
   }
 
   // ── More drawer ───────────────────────────────────────────────
