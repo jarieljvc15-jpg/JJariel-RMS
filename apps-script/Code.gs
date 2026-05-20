@@ -659,26 +659,26 @@ function updateConfig(body) {
 
 // ============================================================
 // EMAIL HELPER
+// Uses GmailApp — no API key needed, sends from the Google account
+// that owns this Apps Script project.
+//
+// Config sheet rows required:
+//   PropertyName  — e.g. "JJ Apartment"
+//   AdminContact  — phone / Messenger shown at bottom of receipt
+//   AdminEmail    — Outlook (or any) address for the admin copy
+//                   Leave blank to skip the admin copy silently.
 // ============================================================
 
 function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance, cfg) {
-  var apiKey = PropertiesService.getScriptProperties().getProperty("RESEND_API_KEY");
-  if (!apiKey) {
-    Logger.log("sendReceiptEmail: skipped — RESEND_API_KEY not set in Script Properties");
-    return;
-  }
-  if (!tenant["Email"]) {
+  var tenantEmail = String(tenant["Email"] || "").trim();
+  if (!tenantEmail) {
     Logger.log("sendReceiptEmail: skipped — tenant has no email (tenantId=" + tenant["TenantID"] + ")");
     return;
   }
 
   var propertyName = cfg["PropertyName"] || "JJ Apartment";
   var adminContact = cfg["AdminContact"] || "N/A";
-  var fromEmail    = cfg["ResendFromEmail"] || "";
-  if (!fromEmail) {
-    Logger.log("sendReceiptEmail: skipped — ResendFromEmail not set in Config sheet");
-    return;
-  }
+  var adminEmail   = String(cfg["AdminEmail"] || "").trim();
 
   var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
 
@@ -715,30 +715,17 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     "For inquiries contact: " + adminContact
   ].join("\n");
 
-  var resendPayload = {
-    from:    fromEmail,
-    to:      [tenant["Email"]],
-    subject: subject,
-    text:    bodyText
-  };
+  // 1. Receipt to tenant
+  GmailApp.sendEmail(tenantEmail, subject, bodyText);
+  Logger.log("sendReceiptEmail: receipt sent to tenant=" + tenantEmail);
 
-  Logger.log("sendReceiptEmail: sending to=" + tenant["Email"] + " from=" + fromEmail + " subject=" + subject);
-
-  var response = UrlFetchApp.fetch("https://api.resend.com/emails", {
-    method:  "post",
-    headers: {
-      "Authorization": "Bearer " + apiKey,
-      "Content-Type":  "application/json"
-    },
-    payload:            JSON.stringify(resendPayload),
-    muteHttpExceptions: true
-  });
-
-  var statusCode = response.getResponseCode();
-  var responseBody = response.getContentText();
-  Logger.log("sendReceiptEmail: Resend response status=" + statusCode + " body=" + responseBody);
-
-  if (statusCode < 200 || statusCode >= 300) {
-    throw new Error("Resend API returned " + statusCode + ": " + responseBody);
+  // 2. Admin copy — silent skip if AdminEmail not configured in Config sheet
+  if (adminEmail) {
+    var adminSubject = "COPY: " + subject;
+    var adminBody    = "This is your admin copy of the receipt sent to " + tenantEmail + "\n\n" + bodyText;
+    GmailApp.sendEmail(adminEmail, adminSubject, adminBody);
+    Logger.log("sendReceiptEmail: admin copy sent to=" + adminEmail);
+  } else {
+    Logger.log("sendReceiptEmail: admin copy skipped — AdminEmail not set in Config sheet");
   }
 }
