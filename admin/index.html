@@ -176,8 +176,6 @@
   document.getElementById('currentMonth').textContent =
     now.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
 
-  // ── Helpers ──────────────────────────────────────────────────
-
   function peso(n) {
     return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -198,13 +196,9 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // ── More drawer ───────────────────────────────────────────────
-
   const drawer = document.getElementById('moreDrawer');
   document.getElementById('moreBtn').addEventListener('click', () => drawer.classList.add('open'));
   drawer.addEventListener('click', (e) => { if (e.target === drawer) drawer.classList.remove('open'); });
-
-  // ── Data load ────────────────────────────────────────────────
 
   async function loadDashboard() {
     const loading = document.getElementById('loadingState');
@@ -239,7 +233,6 @@
     document.getElementById('statOccupancySub').textContent =
       d.occupiedUnits + ' / ' + d.totalUnits + ' units occupied';
     document.getElementById('statDelinquent').textContent = (d.delinquentTenants || []).length;
-
     renderDelinquents(d.delinquentTenants || []);
   }
 
