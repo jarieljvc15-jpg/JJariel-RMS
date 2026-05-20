@@ -48,6 +48,7 @@
 <script src="../assets/config.js"></script>
 <script>
 (function () {
+  // If already logged in, redirect to dashboard
   if (localStorage.getItem('tenantToken') && localStorage.getItem('tenantUnit')) {
     window.location.href = './dashboard.html';
     return;
