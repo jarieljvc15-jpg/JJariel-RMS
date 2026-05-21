@@ -491,7 +491,7 @@ function recordPayment(body) {
   var elecAmount   = parseFloat(body.elecAmount)   || 0;
   var waterAmount  = parseFloat(body.waterAmount)  || 0;
   var paymentMode  = String(body.paymentMode  || "").trim();
-  var referenceNo  = String(body.referenceNo  || "").trim();
+  var referenceNo  = String(body.referenceNo  || "").replace(/[`'"]/g, "").trim();
   var notes        = String(body.notes        || "").trim();
 
   if (!tenantId) throw new Error("tenantId is required");
@@ -666,16 +666,152 @@ function updateConfig(body) {
 }
 
 // ============================================================
-// EMAIL HELPER
-// Uses GmailApp — no API key needed, sends from the Google account
-// that owns this Apps Script project.
-//
+// EMAIL HELPERS
 // Config sheet rows required:
 //   PropertyName  — e.g. "JJ Apartment"
-//   AdminContact  — phone / Messenger shown at bottom of receipt
-//   AdminEmail    — Outlook (or any) address for the admin copy
-//                   Leave blank to skip the admin copy silently.
+//   AdminContact  — phone / Messenger shown in footer
+//   AdminEmail    — address for admin copy; omit to skip silently
 // ============================================================
+
+function buildReceiptHtml(tenant, unit, billingMonth, payment, remainingBalance, cfg, adminNote) {
+  var propertyName  = cfg["PropertyName"] || "JJ Apartment";
+  var adminContact  = String(cfg["AdminContact"] || "N/A");
+  var today         = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var unitName     = unit["UnitName"] || unit["UnitID"] || "";
+  var unitDisplay  = unit["BuildingName"] ? unitName + " &middot; " + unit["BuildingName"] : unitName;
+
+  function ph(n) { return "&#8369;" + Number(n || 0).toFixed(2); }
+
+  var rentStr  = ph(payment.rentAmount);
+  var elecStr  = ph(payment.elecAmount);
+  var waterStr = ph(payment.waterAmount);
+  var totalStr = ph(payment.totalPaid);
+
+  var refRow = payment.referenceNo
+    ? '<tr>'
+        + '<td style="font-size:13px;color:#94a3b8;padding:6px 0;vertical-align:middle;">Reference No.</td>'
+        + '<td style="padding:6px 0;text-align:right;vertical-align:middle;">'
+        + '<span style="font-family:monospace;background:#f4f6fb;padding:3px 8px;border-radius:4px;font-size:13px;color:#0f172a;">'
+        + payment.referenceNo + '</span></td></tr>'
+    : '';
+
+  var totalBal = remainingBalance.total || 0;
+  var balBlock;
+  if (totalBal <= 0) {
+    balBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+      + '<td align="center" style="padding:8px 0;">'
+      + '<span style="display:inline-block;background:#d1fae5;color:#065f46;border-radius:999px;'
+      + 'padding:7px 22px;font-size:14px;font-weight:700;">&#10003; Fully Paid</span>'
+      + '</td></tr></table>';
+  } else {
+    balBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+      + '<tr><td style="font-size:13px;color:#94a3b8;padding:3px 0;">Rent remaining</td>'
+      + '<td style="font-size:13px;color:#ef4444;text-align:right;padding:3px 0;">' + ph(remainingBalance.rent) + '</td></tr>'
+      + '<tr><td style="font-size:13px;color:#94a3b8;padding:3px 0;">Electric remaining</td>'
+      + '<td style="font-size:13px;color:#ef4444;text-align:right;padding:3px 0;">' + ph(remainingBalance.elec) + '</td></tr>'
+      + '<tr><td style="font-size:13px;color:#94a3b8;padding:3px 0;">Water remaining</td>'
+      + '<td style="font-size:13px;color:#ef4444;text-align:right;padding:3px 0;">' + ph(remainingBalance.water) + '</td></tr>'
+      + '<tr><td colspan="2" style="padding:4px 0;"><div style="height:1px;background:#e2e8f0;"></div></td></tr>'
+      + '<tr><td style="font-size:14px;font-weight:700;color:#ef4444;padding:4px 0 0;">Total remaining</td>'
+      + '<td style="font-size:14px;font-weight:700;color:#ef4444;text-align:right;padding:4px 0 0;">' + ph(totalBal) + '</td></tr>'
+      + '</table>';
+  }
+
+  var adminNoteBlock = adminNote
+    ? '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;margin-bottom:12px;">'
+        + '<tr><td style="background:#fef3c7;border-radius:8px;padding:12px 16px;">'
+        + '<span style="font-size:13px;color:#92400e;">' + adminNote + '</span>'
+        + '</td></tr></table>'
+    : '';
+
+  return '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background:#f7f8fc;font-family:Arial,Helvetica,sans-serif;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7f8fc;">'
+    + '<tr><td align="center" style="padding:28px 16px;">'
+    + adminNoteBlock
+    + '<table cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:520px;">'
+
+    // ── Header ──────────────────────────────────────────────────
+    + '<tr><td style="background:#0f172a;padding:24px 32px;border-radius:12px 12px 0 0;">'
+    + '<div style="font-size:20px;font-weight:700;color:#ffffff;line-height:1.3;margin:0;">' + propertyName + '</div>'
+    + '<div style="font-size:14px;color:#8ea3c8;margin-top:6px;line-height:1.3;">Payment Receipt</div>'
+    + '</td></tr>'
+
+    // ── Body ─────────────────────────────────────────────────────
+    + '<tr><td style="background:#ffffff;padding:28px 32px;">'
+
+    // Info 2-col grid
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + '<tr>'
+    + '<td width="50%" style="padding-bottom:14px;vertical-align:top;">'
+    + '<div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;">Tenant</div>'
+    + '<div style="font-size:14px;font-weight:700;color:#0f172a;margin-top:3px;">' + (tenant["Name"] || "") + '</div>'
+    + '</td>'
+    + '<td width="50%" style="padding-bottom:14px;vertical-align:top;text-align:right;">'
+    + '<div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;">Unit</div>'
+    + '<div style="font-size:14px;font-weight:700;color:#0f172a;margin-top:3px;">' + unitDisplay + '</div>'
+    + '</td>'
+    + '</tr>'
+    + '<tr>'
+    + '<td style="vertical-align:top;">'
+    + '<div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;">Billing Month</div>'
+    + '<div style="font-size:14px;font-weight:700;color:#0f172a;margin-top:3px;">' + billingMonth + '</div>'
+    + '</td>'
+    + '<td style="vertical-align:top;text-align:right;">'
+    + '<div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;">Date Paid</div>'
+    + '<div style="font-size:14px;font-weight:700;color:#0f172a;margin-top:3px;">' + today + '</div>'
+    + '</td>'
+    + '</tr>'
+    + '</table>'
+
+    + '<div style="height:1px;background:#e2e8f0;margin:20px 0;"></div>'
+
+    // Payment Summary
+    + '<div style="font-size:11px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Payment Summary</div>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ecfdf5" style="background:#ecfdf5;border-radius:8px;">'
+    + '<tr><td style="padding:10px 14px 4px;font-size:14px;color:#475569;">Rent Paid</td>'
+    + '<td style="padding:10px 14px 4px;font-size:14px;color:#475569;text-align:right;">' + rentStr + '</td></tr>'
+    + '<tr><td style="padding:4px 14px;font-size:14px;color:#475569;">Electric Paid</td>'
+    + '<td style="padding:4px 14px;font-size:14px;color:#475569;text-align:right;">' + elecStr + '</td></tr>'
+    + '<tr><td style="padding:4px 14px;font-size:14px;color:#475569;">Water Paid</td>'
+    + '<td style="padding:4px 14px;font-size:14px;color:#475569;text-align:right;">' + waterStr + '</td></tr>'
+    + '<tr><td colspan="2" style="padding:0 14px;"><div style="height:1px;background:#d1fae5;margin:6px 0;"></div></td></tr>'
+    + '<tr><td style="padding:4px 14px 10px;font-size:15px;font-weight:700;color:#10b981;">Total Paid</td>'
+    + '<td style="padding:4px 14px 10px;font-size:15px;font-weight:700;color:#10b981;text-align:right;">' + totalStr + '</td></tr>'
+    + '</table>'
+
+    + '<div style="height:1px;background:#e2e8f0;margin:18px 0;"></div>'
+
+    // Payment details
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + '<tr>'
+    + '<td style="font-size:13px;color:#94a3b8;padding:5px 0;vertical-align:middle;">Payment Mode</td>'
+    + '<td style="padding:5px 0;text-align:right;vertical-align:middle;">'
+    + '<span style="display:inline-block;background:#eef2ff;color:#2d5be3;border-radius:999px;padding:4px 14px;font-size:13px;font-weight:600;">'
+    + (payment.paymentMode || "—") + '</span></td></tr>'
+    + refRow
+    + '</table>'
+
+    + '<div style="height:1px;background:#e2e8f0;margin:18px 0;"></div>'
+
+    // Remaining balance
+    + '<div style="font-size:11px;font-weight:700;color:#0f172a;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">Remaining Balance</div>'
+    + '<div style="background:#f4f6fb;border-radius:8px;padding:14px;">' + balBlock + '</div>'
+
+    + '</td></tr>'
+
+    // ── Footer ───────────────────────────────────────────────────
+    + '<tr><td style="background:#0f172a;padding:16px 32px;border-radius:0 0 12px 12px;">'
+    + '<div style="color:#8ea3c8;font-size:12px;line-height:1.5;">For inquiries: ' + adminContact + '</div>'
+    + '<div style="color:#3d5280;font-size:11px;margin-top:4px;">JJariel Rentals &middot; Powered by JJ Apartment RMS</div>'
+    + '</td></tr>'
+
+    + '</table>'           // end card
+    + '</td></tr></table>' // end outer wrapper
+    + '</body></html>';
+}
 
 function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance, cfg) {
   var tenantEmail = String(tenant["Email"] || "").trim();
@@ -684,25 +820,23 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     return;
   }
 
-  var propertyName = cfg["PropertyName"] || "JJ Apartment";
-  var adminContact = cfg["AdminContact"] || "N/A";
-  var adminEmail   = String(cfg["AdminEmail"] || "").trim();
+  var adminContact = String(cfg["AdminContact"] || "N/A");
+  var adminEmail   = String(cfg["AdminEmail"]   || "").trim();
+  var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
 
-  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var unitName    = unit["UnitName"] || unit["UnitID"] || "";
+  var unitDisplay = unit["BuildingName"] ? unitName + " · " + unit["BuildingName"] : unitName;
 
-  var subject = "Payment Receipt — " + (unit["UnitName"] || "") + ", " + billingMonth;
+  var subject = "Payment Receipt — " + unitDisplay + ", " + billingMonth;
 
-  var rentBal  = remainingBalance.rent  || 0;
-  var elecBal  = remainingBalance.elec  || 0;
-  var waterBal = remainingBalance.water || 0;
+  // Plain-text fallback
   var totalBal = remainingBalance.total || 0;
-
+  var balLine  = totalBal <= 0 ? "Fully Paid" : "₱" + totalBal.toFixed(2) + " remaining";
   var bodyText = [
-    propertyName,
-    "Payment Receipt",
+    (cfg["PropertyName"] || "JJ Apartment") + " — Payment Receipt",
     "",
-    "Tenant: "        + (tenant["Name"]      || ""),
-    "Unit: "          + (unit["UnitName"]    || "") + " · " + (unit["BuildingName"] || ""),
+    "Tenant: "        + (tenant["Name"] || ""),
+    "Unit: "          + unitDisplay,
     "Billing Month: " + billingMonth,
     "Date Paid: "     + today,
     "",
@@ -711,27 +845,27 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     "Water Paid:    ₱" + (payment.waterAmount || 0).toFixed(2),
     "Total Paid:    ₱" + (payment.totalPaid   || 0).toFixed(2),
     "",
-    "Payment Mode: " + (payment.paymentMode || ""),
-    "Reference No: " + (payment.referenceNo || "N/A"),
+    "Payment Mode:  " + (payment.paymentMode || ""),
+    "Reference No:  " + (payment.referenceNo || "N/A"),
     "",
-    "Remaining Balance:",
-    "  Rent:     ₱" + rentBal.toFixed(2),
-    "  Electric: ₱" + elecBal.toFixed(2),
-    "  Water:    ₱" + waterBal.toFixed(2),
-    "  Total:    ₱" + totalBal.toFixed(2),
+    "Remaining Balance: " + balLine,
     "",
-    "For inquiries contact: " + adminContact
+    "For inquiries: " + adminContact
   ].join("\n");
 
+  var htmlBody = buildReceiptHtml(tenant, unit, billingMonth, payment, remainingBalance, cfg, null);
+
   // 1. Receipt to tenant
-  GmailApp.sendEmail(tenantEmail, subject, bodyText);
+  GmailApp.sendEmail(tenantEmail, subject, bodyText, { htmlBody: htmlBody });
   Logger.log("sendReceiptEmail: receipt sent to tenant=" + tenantEmail);
 
-  // 2. Admin copy — silent skip if AdminEmail not configured in Config sheet
+  // 2. Admin copy — silent skip if AdminEmail not in Config
   if (adminEmail) {
-    var adminSubject = "COPY: " + subject;
-    var adminBody    = "This is your admin copy of the receipt sent to " + tenantEmail + "\n\n" + bodyText;
-    GmailApp.sendEmail(adminEmail, adminSubject, adminBody);
+    var adminNote    = "This is your admin copy. Tenant: " + tenantEmail + " has been notified.";
+    var adminHtml    = buildReceiptHtml(tenant, unit, billingMonth, payment, remainingBalance, cfg, adminNote);
+    var adminSubject = "[ADMIN COPY] " + subject;
+    var adminText    = adminNote + "\n\n" + bodyText;
+    GmailApp.sendEmail(adminEmail, adminSubject, adminText, { htmlBody: adminHtml });
     Logger.log("sendReceiptEmail: admin copy sent to=" + adminEmail);
   } else {
     Logger.log("sendReceiptEmail: admin copy skipped — AdminEmail not set in Config sheet");
