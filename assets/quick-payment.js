@@ -664,7 +664,7 @@
     btn.disabled = true;
     btn.textContent = 'Processing…';
 
-    const token       = localStorage.getItem('adminToken') || '';
+    const adminToken  = localStorage.getItem('adminToken') || '';
     const rentAmount  = parseFloat(document.getElementById('qpRent').value)  || 0;
     const elecAmount  = parseFloat(document.getElementById('qpElec').value)  || 0;
     const waterAmount = parseFloat(document.getElementById('qpWater').value) || 0;
@@ -680,7 +680,7 @@
         const upRes  = await fetch(CONFIG.APPS_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'uploadProof', token, base64Image: proofBase64, fileName: proofFileName || 'proof.jpg' })
+          body: JSON.stringify({ action: 'uploadProof', adminToken, base64Image: proofBase64, fileName: proofFileName || 'proof.jpg' })
         });
         const upJson = await upRes.json();
         if (!upJson.success) throw new Error(upJson.error || 'Proof upload failed');
@@ -692,7 +692,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
-          action: 'recordPayment', token,
+          action: 'recordPayment', adminToken,
           tenantId:     selectedTenant.TenantID,
           billingMonth, rentAmount, elecAmount, waterAmount,
           totalPaid,    paymentMode: payMode,

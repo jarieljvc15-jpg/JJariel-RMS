@@ -96,7 +96,7 @@ function sheetToJSON(sheet) {
     for (var j = 0; j < headers.length; j++) {
       var val = data[i][j];
       if (val instanceof Date) {
-        val = val.toISOString().split("T")[0];
+        val = Utilities.formatDate(val, Session.getScriptTimeZone(), "yyyy-MM-dd");
       }
       row[headers[j]] = val;
     }
@@ -296,16 +296,14 @@ function getDashboardData() {
   var now          = new Date();
   var currentMonth = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM");
 
-  var currentMonthLedger = ledger.filter(function(r) {
-    return normMonth(r["BillingMonth"]) === currentMonth;
-  });
-
-  var currentMonthBilled = 0;
+  var currentMonthBilled    = 0;
   var currentMonthCollected = 0;
-  currentMonthLedger.forEach(function(r) {
+  ledger.forEach(function(r) {
+    var rowMonth = String(r["BillingMonth"] || "").trim().substring(0, 7);
+    if (rowMonth !== currentMonth) return;
     var amt     = parseFloat(r["TotalAmount"]) || 0;
-    var txnType = String(r["TxnType"] || "").trim();
-    var dir     = String(r["Direction"] || "").trim();
+    var txnType = String(r["TxnType"]    || "").trim();
+    var dir     = String(r["Direction"]  || "").trim();
     if (txnType === "Bill"    && dir === "Debit")  currentMonthBilled    += amt;
     if (txnType === "Payment" && dir === "Credit") currentMonthCollected += amt;
   });
@@ -342,15 +340,15 @@ function getDashboardData() {
 
     var monthMap = {};
     tenantLedger.forEach(function(r) {
-      var m = normMonth(r["BillingMonth"]);
+      var m = String(r["BillingMonth"] || "").trim().substring(0, 7);
       if (!m) return;
       // Skip deposit credits in month map too
-      var isDepositCredit = r["Direction"] === "Credit" &&
+      var isDepositCredit = String(r["Direction"] || "").trim() === "Credit" &&
         String(r["Notes"] || "").toLowerCase().indexOf("deposit") !== -1;
       if (isDepositCredit) return;
 
       if (!monthMap[m]) monthMap[m] = { rent: 0, elec: 0, water: 0 };
-      var sign = r["Direction"] === "Debit" ? 1 : -1;
+      var sign = String(r["Direction"] || "").trim() === "Debit" ? 1 : -1;
       monthMap[m].rent  += sign * (parseFloat(r["RentAmount"])  || 0);
       monthMap[m].elec  += sign * (parseFloat(r["ElecAmount"])  || 0);
       monthMap[m].water += sign * (parseFloat(r["WaterAmount"]) || 0);
@@ -738,4 +736,9 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
   } else {
     Logger.log("sendReceiptEmail: admin copy skipped — AdminEmail not set in Config sheet");
   }
+}
+
+function testDashboard() {
+  var result = getDashboardData();
+  Logger.log(JSON.stringify(result));
 }
