@@ -739,3 +739,8 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     Logger.log("sendReceiptEmail: admin copy skipped — AdminEmail not set in Config sheet");
   }
 }
+
+function testDashboard() {
+  var result = getDashboardData();
+  Logger.log(JSON.stringify(result));
+}
