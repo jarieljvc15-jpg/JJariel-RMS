@@ -136,6 +136,13 @@ function isTxnIDDuplicate(txnId) {
   return false;
 }
 
+// Normalises a BillingMonth value to "YYYY-MM".
+// Sheets auto-converts "2026-05" → Date, which sheetToJSON serialises back
+// as "2026-05-01".  Taking the first 7 chars handles both forms.
+function normMonth(val) {
+  return String(val || "").substring(0, 7);
+}
+
 // Positive = tenant owes money. Negative = tenant has credit.
 // Deposit credits are never counted.
 // Advance credits only offset when at least one Bill/Debit exists.
@@ -219,7 +226,7 @@ function getLedger(params) {
     rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
   }
   if (params.billingMonth) {
-    rows = rows.filter(function(r) { return r["BillingMonth"] === params.billingMonth; });
+    rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
   return rows;
 }
@@ -236,7 +243,7 @@ function getReadings(params) {
     rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
   }
   if (params.billingMonth) {
-    rows = rows.filter(function(r) { return r["BillingMonth"] === params.billingMonth; });
+    rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
   return rows;
 }
@@ -290,18 +297,32 @@ function getDashboardData() {
   var currentMonth = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM");
 
   var currentMonthLedger = ledger.filter(function(r) {
-    return r["BillingMonth"] === currentMonth;
+    return normMonth(r["BillingMonth"]) === currentMonth;
   });
 
   var currentMonthBilled = 0;
   var currentMonthCollected = 0;
   currentMonthLedger.forEach(function(r) {
-    var amt = parseFloat(r["TotalAmount"]) || 0;
-    if (r["TxnType"] === "Bill"    && r["Direction"] === "Debit")  currentMonthBilled    += amt;
-    if (r["TxnType"] === "Payment" && r["Direction"] === "Credit") currentMonthCollected += amt;
+    var amt     = parseFloat(r["TotalAmount"]) || 0;
+    var txnType = String(r["TxnType"] || "").trim();
+    var dir     = String(r["Direction"] || "").trim();
+    if (txnType === "Bill"    && dir === "Debit")  currentMonthBilled    += amt;
+    if (txnType === "Payment" && dir === "Credit") currentMonthCollected += amt;
   });
 
+  // totalOutstanding: one-pass sum over all ledger rows.
+  // Deposit credits are excluded (they are held as security, not a payment).
   var totalOutstanding = 0;
+  ledger.forEach(function(r) {
+    var isDepositCredit = String(r["Direction"] || "").trim() === "Credit" &&
+      String(r["Notes"] || "").toLowerCase().indexOf("deposit") !== -1;
+    if (isDepositCredit) return;
+    var amt = parseFloat(r["TotalAmount"]) || 0;
+    if (String(r["Direction"] || "").trim() === "Debit")  totalOutstanding += amt;
+    if (String(r["Direction"] || "").trim() === "Credit") totalOutstanding -= amt;
+  });
+  if (totalOutstanding < 0) totalOutstanding = 0;
+
   var delinquentTenants = [];
 
   var unitMap = {};
@@ -315,15 +336,13 @@ function getDashboardData() {
     var balance = computeBalance(tenant["TenantID"]);
     if (balance.total <= 0) return; // skip zero or credit tenants
 
-    totalOutstanding += balance.total;
-
     var tenantLedger = ledger.filter(function(r) {
       return r["TenantID"] === tenant["TenantID"];
     });
 
     var monthMap = {};
     tenantLedger.forEach(function(r) {
-      var m = r["BillingMonth"];
+      var m = normMonth(r["BillingMonth"]);
       if (!m) return;
       // Skip deposit credits in month map too
       var isDepositCredit = r["Direction"] === "Credit" &&
@@ -409,7 +428,7 @@ function generateBill(body) {
   units.forEach(function(u) { unitMap[u["UnitID"]] = u; });
 
   var readings = sheetToJSON(getSheet("UtilityReadings")).filter(function(r) {
-    return r["BillingMonth"] === billingMonth;
+    return normMonth(r["BillingMonth"]) === normMonth(billingMonth);
   });
 
   var ledgerSheet = getSheet("Ledger");
@@ -457,7 +476,7 @@ function generateBill(body) {
       WaterAmount:  waterAmount,
       TotalAmount:  totalAmount,
       Notes:        "Monthly Bill",
-      DatePaid:     today
+      Date:         today
     });
 
     billsCreated++;
@@ -514,7 +533,7 @@ function recordPayment(body) {
     PaymentMode:  paymentMode,
     ReferenceNo:  referenceNo,
     Notes:        notes,
-    DatePaid:     today
+    Date:         today
   });
 
   var remainingBalance = computeBalance(tenantId);
@@ -600,7 +619,7 @@ function addTenant(body) {
       WaterAmount:  0,
       TotalAmount:  advance,
       Notes:        "Advance",
-      DatePaid:     today
+      Date:         today
     });
   }
 
@@ -617,7 +636,7 @@ function addTenant(body) {
       WaterAmount:  0,
       TotalAmount:  deposit,
       Notes:        "Deposit",
-      DatePaid:     today
+      Date:         today
     });
   }
 
@@ -650,15 +669,26 @@ function updateConfig(body) {
 
 // ============================================================
 // EMAIL HELPER
+// Uses GmailApp — no API key needed, sends from the Google account
+// that owns this Apps Script project.
+//
+// Config sheet rows required:
+//   PropertyName  — e.g. "JJ Apartment"
+//   AdminContact  — phone / Messenger shown at bottom of receipt
+//   AdminEmail    — Outlook (or any) address for the admin copy
+//                   Leave blank to skip the admin copy silently.
 // ============================================================
 
 function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance, cfg) {
-  var apiKey = PropertiesService.getScriptProperties().getProperty("RESEND_API_KEY");
-  if (!apiKey || !tenant["Email"]) return;
+  var tenantEmail = String(tenant["Email"] || "").trim();
+  if (!tenantEmail) {
+    Logger.log("sendReceiptEmail: skipped — tenant has no email (tenantId=" + tenant["TenantID"] + ")");
+    return;
+  }
 
   var propertyName = cfg["PropertyName"] || "JJ Apartment";
   var adminContact = cfg["AdminContact"] || "N/A";
-  var fromEmail    = cfg["ResendFromEmail"] || ("noreply@" + propertyName.toLowerCase().replace(/\s+/g, "") + ".com");
+  var adminEmail   = String(cfg["AdminEmail"] || "").trim();
 
   var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
 
@@ -673,10 +703,10 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     propertyName,
     "Payment Receipt",
     "",
-    "Tenant: "       + (tenant["Name"]      || ""),
-    "Unit: "         + (unit["UnitName"]    || "") + " · " + (unit["BuildingName"] || ""),
-    "Billing Month: "+ billingMonth,
-    "Date Paid: "    + today,
+    "Tenant: "        + (tenant["Name"]      || ""),
+    "Unit: "          + (unit["UnitName"]    || "") + " · " + (unit["BuildingName"] || ""),
+    "Billing Month: " + billingMonth,
+    "Date Paid: "     + today,
     "",
     "Rent Paid:     ₱" + (payment.rentAmount  || 0).toFixed(2),
     "Electric Paid: ₱" + (payment.elecAmount  || 0).toFixed(2),
@@ -695,20 +725,17 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
     "For inquiries contact: " + adminContact
   ].join("\n");
 
-  var payload = {
-    from:    fromEmail,
-    to:      [tenant["Email"]],
-    subject: subject,
-    text:    bodyText
-  };
+  // 1. Receipt to tenant
+  GmailApp.sendEmail(tenantEmail, subject, bodyText);
+  Logger.log("sendReceiptEmail: receipt sent to tenant=" + tenantEmail);
 
-  UrlFetchApp.fetch("https://api.resend.com/emails", {
-    method:  "post",
-    headers: {
-      "Authorization": "Bearer " + apiKey,
-      "Content-Type":  "application/json"
-    },
-    payload:            JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
+  // 2. Admin copy — silent skip if AdminEmail not configured in Config sheet
+  if (adminEmail) {
+    var adminSubject = "COPY: " + subject;
+    var adminBody    = "This is your admin copy of the receipt sent to " + tenantEmail + "\n\n" + bodyText;
+    GmailApp.sendEmail(adminEmail, adminSubject, adminBody);
+    Logger.log("sendReceiptEmail: admin copy sent to=" + adminEmail);
+  } else {
+    Logger.log("sendReceiptEmail: admin copy skipped — AdminEmail not set in Config sheet");
+  }
 }
