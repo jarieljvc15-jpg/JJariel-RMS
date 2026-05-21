@@ -310,7 +310,19 @@ function getDashboardData() {
     if (txnType === "Payment" && dir === "Credit") currentMonthCollected += amt;
   });
 
+  // totalOutstanding: one-pass sum over all ledger rows.
+  // Deposit credits are excluded (they are held as security, not a payment).
   var totalOutstanding = 0;
+  ledger.forEach(function(r) {
+    var isDepositCredit = String(r["Direction"] || "").trim() === "Credit" &&
+      String(r["Notes"] || "").toLowerCase().indexOf("deposit") !== -1;
+    if (isDepositCredit) return;
+    var amt = parseFloat(r["TotalAmount"]) || 0;
+    if (String(r["Direction"] || "").trim() === "Debit")  totalOutstanding += amt;
+    if (String(r["Direction"] || "").trim() === "Credit") totalOutstanding -= amt;
+  });
+  if (totalOutstanding < 0) totalOutstanding = 0;
+
   var delinquentTenants = [];
 
   var unitMap = {};
@@ -323,8 +335,6 @@ function getDashboardData() {
   tenants.forEach(function(tenant) {
     var balance = computeBalance(tenant["TenantID"]);
     if (balance.total <= 0) return; // skip zero or credit tenants
-
-    totalOutstanding += balance.total;
 
     var tenantLedger = ledger.filter(function(r) {
       return r["TenantID"] === tenant["TenantID"];
@@ -466,7 +476,7 @@ function generateBill(body) {
       WaterAmount:  waterAmount,
       TotalAmount:  totalAmount,
       Notes:        "Monthly Bill",
-      DatePaid:     today
+      Date:         today
     });
 
     billsCreated++;
@@ -523,7 +533,7 @@ function recordPayment(body) {
     PaymentMode:  paymentMode,
     ReferenceNo:  referenceNo,
     Notes:        notes,
-    DatePaid:     today
+    Date:         today
   });
 
   var remainingBalance = computeBalance(tenantId);
@@ -609,7 +619,7 @@ function addTenant(body) {
       WaterAmount:  0,
       TotalAmount:  advance,
       Notes:        "Advance",
-      DatePaid:     today
+      Date:         today
     });
   }
 
@@ -626,7 +636,7 @@ function addTenant(body) {
       WaterAmount:  0,
       TotalAmount:  deposit,
       Notes:        "Deposit",
-      DatePaid:     today
+      Date:         today
     });
   }
 
