@@ -853,32 +853,39 @@
 
   async function submitReading(overwrite) {
     if (!activeUnit) return;
-    const btn = document.getElementById('logSubmitBtn');
+    var btn = document.getElementById('logSubmitBtn');
     btn.disabled = true;
     btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Saving…';
 
-    const unitId       = activeUnit.UnitID;
-    const billingMonth = monthPicker.value;
-    const mode         = currentMode;
+    // 1. Declare ALL variables first
+    var unitId           = activeUnit.UnitID;
+    var billingMonth     = monthPicker.value;
+    var mode             = currentMode;
+    var elecPrev         = parseFloat(document.getElementById('elecPrev').value)    || 0;
+    var elecCurrent      = parseFloat(document.getElementById('elecCurrent').value) || 0;
+    var elecConsumption  = 0;
+    var elecRate         = parseFloat(document.getElementById('elecRate').value)     || 0;
+    var elecCharge       = 0;
+    var waterPrev        = parseFloat(document.getElementById('waterPrev').value)    || 0;
+    var waterCurrent     = parseFloat(document.getElementById('waterCurrent').value) || 0;
+    var waterConsumption = 0;
+    var waterRate        = parseFloat(document.getElementById('waterRate').value)    || 0;
+    var waterCharge      = 0;
+    var notes            = '';
 
-    const elecPrev     = parseFloat(document.getElementById('elecPrev').value)    || 0;
-    const elecCurrent  = parseFloat(document.getElementById('elecCurrent').value) || 0;
-    const elecRate     = parseFloat(document.getElementById('elecRate').value)     || 0;
-    const waterPrev    = parseFloat(document.getElementById('waterPrev').value)    || 0;
-    const waterCurrent = parseFloat(document.getElementById('waterCurrent').value) || 0;
-    const waterRate    = parseFloat(document.getElementById('waterRate').value)    || 0;
-
-    let elecCharge, waterCharge, notes;
+    // 2. Then compute values
     if (mode === 'byReading') {
-      elecCharge  = Math.max(0, elecCurrent - elecPrev)  * elecRate;
-      waterCharge = Math.max(0, waterCurrent - waterPrev) * waterRate;
-      notes = '';
+      elecConsumption  = Math.max(0, elecCurrent - elecPrev);
+      elecCharge       = elecConsumption * elecRate;
+      waterConsumption = Math.max(0, waterCurrent - waterPrev);
+      waterCharge      = waterConsumption * waterRate;
     } else {
       elecCharge  = parseFloat(document.getElementById('directElec').value)  || 0;
       waterCharge = parseFloat(document.getElementById('directWater').value) || 0;
       notes       = document.getElementById('directNote').value.trim();
     }
 
+    // 3. Then build the POST body and fetch
     try {
       const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
         method: 'POST',
@@ -905,7 +912,7 @@
         if (json.error && json.error.indexOf('DUPLICATE:') === 0) {
           // Show overwrite confirmation
           document.getElementById('overwriteMsg').textContent =
-            'Reading already logged for ' + month + '. Overwrite?';
+            'Reading already logged for ' + billingMonth + '. Overwrite?';
           document.getElementById('overwriteConfirm').classList.remove('hidden');
           btn.disabled = false;
           btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Reading';
@@ -915,8 +922,8 @@
       }
 
       const d = json.data || {};
-      const elecCharge = parseFloat(d.elecCharge) || 0;
-      const waterCharge = parseFloat(d.waterCharge) || 0;
+      elecCharge  = parseFloat(d.elecCharge)  || elecCharge;
+      waterCharge = parseFloat(d.waterCharge) || waterCharge;
 
       showToast('Reading saved — Elec: ' + peso(elecCharge) + ' · Water: ' + peso(waterCharge), 'success');
       document.getElementById('logReadingPanel').classList.remove('open');
