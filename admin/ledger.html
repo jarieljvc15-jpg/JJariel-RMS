@@ -306,7 +306,7 @@
 <!-- Bottom nav -->
 <nav class="bottom-nav">
   <a href="./index.html" class="bottom-nav-item">
-    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
     <span>Home</span>
   </a>
   <a href="./tenants.html" class="bottom-nav-item">
@@ -536,11 +536,13 @@
       + rows.map((r, idx) => {
           const dirClass = r.Direction === 'Debit' ? 'dir-debit' : 'dir-credit';
           const ref = String(r.ReferenceNo || '');
+          const txnFull = r.TxnID || '—';
+          const txnShort = txnFull.length > 20 ? txnFull.substring(0, 20) + '…' : txnFull;
           return '<tr data-idx="' + idx + '">'
             + '<td style="white-space:nowrap;font-size:11px;">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</td>'
-            + '<td><span class="txn-id-badge">' + escHtml(r.TxnID || '—') + '</span></td>'
-            + '<td style="font-size:12px;">' + escHtml(r.TenantID || '—') + '</td>'
-            + '<td style="font-size:12px;">' + escHtml(r.UnitID || '—') + '</td>'
+            + '<td><span class="txn-id-badge" title="' + escHtml(txnFull) + '">' + escHtml(txnShort) + '</span></td>'
+            + '<td style="font-size:12px;">' + escHtml(r.TenantName || r.TenantID || '—') + '</td>'
+            + '<td style="font-size:12px;">' + escHtml(r.UnitDisplayName || r.UnitID || '—') + '</td>'
             + '<td style="font-size:11px;white-space:nowrap;">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</td>'
             + '<td>' + typeBadge(r.TxnType) + '</td>'
             + '<td class="col-amount">' + amountCell(r.RentAmount)  + '</td>'
@@ -605,8 +607,8 @@
       + '<div class="section-header">Details</div>'
       + '<div class="detail-row"><span class="detail-label">TxnID</span><span class="detail-value" style="font-family:monospace;font-size:11px;">' + escHtml(r.TxnID || '—') + '</span></div>'
       + '<div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">' + escHtml(r.TenantID || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Unit</span><span class="detail-value">' + escHtml(r.UnitID || '—') + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">' + escHtml(r.TenantName || r.TenantID || '—') + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Unit</span><span class="detail-value">' + escHtml(r.UnitDisplayName || r.UnitID || '—') + '</span></div>'
       + '<div class="detail-row"><span class="detail-label">Billing Month</span><span class="detail-value">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</span></div>'
       + '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">' + typeBadge(r.TxnType) + '</span></div>'
       + '<div class="detail-row"><span class="detail-label">Direction</span><span class="detail-value">' + (r.Direction === 'Debit' ? '<span class="dir-debit">Debit</span>' : '<span class="dir-credit">Credit</span>') + '</span></div>'
