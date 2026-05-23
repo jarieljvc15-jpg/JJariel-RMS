@@ -924,7 +924,7 @@ function testDashboard() {
 }
 
 // ============================================================
-// NOTES HELPERS
+// NOTES
 // ============================================================
 
 function getOrCreateNotesSheet() {
@@ -959,7 +959,7 @@ function addNote(body) {
 }
 
 // ============================================================
-// REMINDER HELPERS
+// REMINDERS
 // ============================================================
 
 function buildReminderHtml(tenant, unit, unpaidMonths, balance, cfg) {
@@ -1108,7 +1108,7 @@ function sendReminder(body) {
 }
 
 // ============================================================
-// TENANT UPDATE
+// UPDATE TENANT
 // ============================================================
 
 function updateTenant(body) {
