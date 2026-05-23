@@ -48,7 +48,7 @@ function doPost(e) {
       switch (action) {
         case "generateBill":   result = generateBill(body);   break;
         case "recordPayment":  result = recordPayment(body);  break;
-        case "uploadProof":    result = uploadProof(body);    break;
+        case "uploadProof":    result = uploadProof(e);       break;
         case "saveReading":    result = saveReading(body);    break;
         case "addTenant":      result = addTenant(body);      break;
         case "moveTenant":     result = moveTenant(body);     break;
@@ -555,7 +555,8 @@ function recordPayment(body) {
   return { txnId: txnId, remainingBalance: remainingBalance };
 }
 
-function uploadProof(body) {
+function uploadProof(e) {
+  var body        = JSON.parse(e.postData.contents);
   var base64Image = String(body.base64Image || "").trim();
   var fileName    = String(body.fileName    || ("proof-" + Date.now() + ".jpg")).trim();
 
