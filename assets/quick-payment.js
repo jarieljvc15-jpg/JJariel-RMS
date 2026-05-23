@@ -27,6 +27,7 @@
       transition: transform 0.15s, box-shadow 0.15s;
     }
     #qpFab:active { transform: scale(0.93); box-shadow: 0 2px 8px rgba(79,126,248,0.3); }
+    body.slide-up-open #qpFab { display: none !important; }
 
     #qpOverlay {
       position: fixed; inset: 0;
@@ -371,14 +372,15 @@
   document.body.appendChild(wrap);
 
   /* ── state ───────────────────────────────────────────────────── */
-  let tenants      = [];
-  let tenantsLoaded = false;
+  let tenants        = [];
+  let tenantsLoaded  = false;
   let selectedTenant = null;
   let currentBalance = null;
-  let isFullPay    = true;
-  let payMode      = 'GCash';
-  let proofBase64  = null;
-  let proofFileName = null;
+  let isFullPay      = true;
+  let payMode        = 'GCash';
+  let proofBase64    = null;
+  let proofFileName  = null;
+  let pendingTenantId = null;
 
   /* ── DOM ─────────────────────────────────────────────────────── */
   const overlay = document.getElementById('qpOverlay');
@@ -388,15 +390,31 @@
   const receipt = document.getElementById('qpReceipt');
   const dots    = document.getElementById('qpDots');
 
+  /* ── FAB visibility: hide when any slide-up is open ─────────── */
+  function anySlideUpOpen() {
+    return !!(document.querySelector('.panel-overlay.open, .drawer-overlay.open'));
+  }
+  function refreshFabVisibility() {
+    const open = anySlideUpOpen() || overlay.classList.contains('qp-open');
+    document.body.classList.toggle('slide-up-open', open);
+  }
+  // Watch every panel/drawer on this page for class changes
+  const _panelObserver = new MutationObserver(refreshFabVisibility);
+  document.querySelectorAll('.panel-overlay, .drawer-overlay').forEach(el => {
+    _panelObserver.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+
   /* ── panel open / close ──────────────────────────────────────── */
   function openPanel() {
     overlay.classList.add('qp-open');
+    document.body.classList.add('slide-up-open');
     document.getElementById('qpMonth').value = currentMonth();
     loadTenants();
   }
 
   function closePanel() {
     overlay.classList.remove('qp-open');
+    if (!anySlideUpOpen()) document.body.classList.remove('slide-up-open');
     setTimeout(resetPanel, 320);
   }
 
@@ -440,7 +458,7 @@
 
   /* ── load tenants ────────────────────────────────────────────── */
   async function loadTenants() {
-    if (tenantsLoaded) return;
+    if (tenantsLoaded) { applyPendingTenant(); return; }
     try {
       const res  = await fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants');
       const json = await res.json();
@@ -458,10 +476,21 @@
       tenantsLoaded = true;
       document.getElementById('qpSpinner1').classList.add('qp-hidden');
       document.getElementById('qpStep1Loaded').classList.remove('qp-hidden');
+      applyPendingTenant();
     } catch (err) {
       document.getElementById('qpSpinner1').innerHTML =
         '<div style="color:var(--danger,#dc2626);font-size:13px;text-align:center;padding:12px 0;">' + esc(err.message) + '</div>';
     }
+  }
+
+  function applyPendingTenant() {
+    if (!pendingTenantId) return;
+    const tid = pendingTenantId;
+    pendingTenantId = null;
+    const sel = document.getElementById('qpTenantSel');
+    sel.value = tid;
+    selectedTenant = tenants.find(t => t.TenantID === tid) || null;
+    if (selectedTenant) fetchBalance(tid);
   }
 
   /* ── fetch balance ───────────────────────────────────────────── */
@@ -713,4 +742,19 @@
   });
 
   document.getElementById('qpDone').addEventListener('click', closePanel);
+
+  /* ── public API ──────────────────────────────────────────────── */
+  window.openQuickPaymentForTenant = function (tenantId) {
+    // Close any open panel/drawer first
+    document.querySelectorAll('.panel-overlay.open, .drawer-overlay.open').forEach(p => p.classList.remove('open'));
+    openPanel();
+    if (tenantsLoaded) {
+      const sel = document.getElementById('qpTenantSel');
+      sel.value = tenantId;
+      selectedTenant = tenants.find(t => t.TenantID === tenantId) || null;
+      if (selectedTenant) fetchBalance(tenantId);
+    } else {
+      pendingTenantId = tenantId;
+    }
+  };
 })();

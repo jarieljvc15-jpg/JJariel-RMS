@@ -48,11 +48,14 @@ function doPost(e) {
       switch (action) {
         case "generateBill":   result = generateBill(body);   break;
         case "recordPayment":  result = recordPayment(body);  break;
-        case "uploadProof":    result = uploadProof(body);    break;
+        case "uploadProof":    result = uploadProof(e);       break;
         case "saveReading":    result = saveReading(body);    break;
         case "addTenant":      result = addTenant(body);      break;
         case "moveTenant":     result = moveTenant(body);     break;
         case "addExpense":     result = addExpense(body);     break;
+        case "addNote":        result = addNote(body);        break;
+        case "sendReminder":   result = sendReminder(body);   break;
+        case "updateTenant":   result = updateTenant(body);   break;
         case "updateConfig":   result = updateConfig(body);   break;
         default:
           result = { message: "Unknown action: " + action };
@@ -220,14 +223,22 @@ function getLedger(params) {
   var rows = sheetToJSON(getSheet("Ledger"));
 
   if (params.tenantId) {
-    rows = rows.filter(function(r) { return r["TenantID"] === params.tenantId; });
+    rows = rows.filter(function(r) { return String(r["TenantID"]) === String(params.tenantId); });
   }
   if (params.unitId) {
-    rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
+    rows = rows.filter(function(r) { return String(r["UnitID"]) === String(params.unitId); });
   }
   if (params.billingMonth) {
     rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
+
+  // Sort newest first by Date
+  rows.sort(function(a, b) {
+    var da = String(a["Date"] || "");
+    var db = String(b["Date"] || "");
+    return da < db ? 1 : da > db ? -1 : 0;
+  });
+
   return rows;
 }
 
@@ -237,10 +248,52 @@ function getBalance(params) {
 }
 
 function getReadings(params) {
-  var rows = sheetToJSON(getSheet("UtilityReadings"));
+  var allRows = sheetToJSON(getSheet("UtilityReadings"));
 
+  // If filtering by billingMonth only (utilities page load), return readings for that month
+  // plus a previousReading field for each unit for pre-filling the form.
+  if (params.billingMonth && !params.unitId) {
+    var targetMonth = normMonth(params.billingMonth);
+
+    // Build map of most-recent reading before targetMonth for each unit
+    var prevMap = {};
+    allRows.forEach(function(r) {
+      var m = normMonth(r["BillingMonth"]);
+      if (m >= targetMonth) return; // only rows before target month
+      var uid = String(r["UnitID"]);
+      if (!prevMap[uid] || m > normMonth(prevMap[uid]["BillingMonth"])) {
+        prevMap[uid] = r;
+      }
+    });
+
+    // Get current month readings
+    var currentRows = allRows.filter(function(r) {
+      return normMonth(r["BillingMonth"]) === targetMonth;
+    });
+
+    // Attach previousReading to each current row (for UI auto-fill)
+    currentRows = currentRows.map(function(r) {
+      var uid = String(r["UnitID"]);
+      var prev = prevMap[uid] || null;
+      if (prev) r["previousReading"] = prev;
+      return r;
+    });
+
+    // Also return stub rows (with just previousReading) for units that have a
+    // prior reading but no current-month reading yet — so the UI can auto-fill Prev field.
+    var currentUnitIds = currentRows.map(function(r) { return String(r["UnitID"]); });
+    Object.keys(prevMap).forEach(function(uid) {
+      if (currentUnitIds.indexOf(uid) === -1) {
+        currentRows.push({ UnitID: uid, previousReading: prevMap[uid] });
+      }
+    });
+
+    return currentRows;
+  }
+
+  var rows = allRows;
   if (params.unitId) {
-    rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
+    rows = rows.filter(function(r) { return String(r["UnitID"]) === String(params.unitId); });
   }
   if (params.billingMonth) {
     rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
@@ -552,7 +605,8 @@ function recordPayment(body) {
   return { txnId: txnId, remainingBalance: remainingBalance };
 }
 
-function uploadProof(body) {
+function uploadProof(e) {
+  var body        = JSON.parse(e.postData.contents);
   var base64Image = String(body.base64Image || "").trim();
   var fileName    = String(body.fileName    || ("proof-" + Date.now() + ".jpg")).trim();
 
@@ -561,8 +615,8 @@ function uploadProof(body) {
   var decoded = Utilities.base64Decode(base64Image);
   var blob    = Utilities.newBlob(decoded, "image/jpeg", fileName);
 
-  var folders = DriveApp.getFoldersByName("JJ Apartment Proofs");
-  var folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder("JJ Apartment Proofs");
+  var folders = DriveApp.getFoldersByName("JJ Apartment - Payment Proofs");
+  var folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder("JJ Apartment - Payment Proofs");
 
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -571,7 +625,138 @@ function uploadProof(body) {
 }
 
 function saveReading(body) {
-  return { message: "stub: saveReading", unitId: body.unitId };
+  var unitId       = String(body.unitId       || "").trim();
+  var billingMonth = String(body.billingMonth || "").trim();
+  var mode         = String(body.mode         || "byReading").trim();
+  var overwrite    = body.overwrite === true || body.overwrite === "true";
+
+  if (!unitId)       throw new Error("unitId is required");
+  if (!billingMonth) throw new Error("billingMonth is required");
+
+  var cfg       = getConfig();
+  var elecRate  = parseFloat(cfg["ElecRate"])  || 0;
+  var waterRate = parseFloat(cfg["WaterRate"]) || 0;
+
+  // Allow caller to supply rate override; fall back to config
+  if (body.elecRate  !== undefined && body.elecRate  !== "") elecRate  = parseFloat(body.elecRate)  || elecRate;
+  if (body.waterRate !== undefined && body.waterRate !== "") waterRate = parseFloat(body.waterRate) || waterRate;
+
+  // Look up the unit
+  var units = sheetToJSON(getSheet("Units"));
+  var unit  = units.filter(function(u) { return String(u["UnitID"]) === unitId; })[0];
+  if (!unit) throw new Error("Unit not found: " + unitId);
+
+  var billingType = String(unit["BillingType"] || "Separate");
+  var combinedWith = String(unit["CombinedWith"] || "").trim();
+
+  // Compute charges
+  var elecConsumption, elecCharge, waterConsumption, waterCharge;
+  if (mode === "byReading") {
+    var elecPrev    = parseFloat(body.elecPrev)    || 0;
+    var elecCurrent = parseFloat(body.elecCurrent) || 0;
+    var waterPrev   = parseFloat(body.waterPrev)   || 0;
+    var waterCurrent = parseFloat(body.waterCurrent) || 0;
+    elecConsumption  = Math.max(0, elecCurrent  - elecPrev);
+    waterConsumption = Math.max(0, waterCurrent - waterPrev);
+    elecCharge  = elecConsumption  * elecRate;
+    waterCharge = waterConsumption * waterRate;
+  } else {
+    elecCharge       = parseFloat(body.elecCharge)  || 0;
+    waterCharge      = parseFloat(body.waterCharge) || 0;
+    elecConsumption  = 0;
+    waterConsumption = 0;
+    elecPrev    = 0; elecCurrent = 0;
+    waterPrev   = 0; waterCurrent = 0;
+  }
+
+  var readingSheet = getSheet("UtilityReadings");
+  var notes        = String(body.notes || "").trim();
+  var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  function deleteReadingById(readingId) {
+    var data = readingSheet.getDataRange().getValues();
+    var headers = data[0].map(function(h) { return String(h).trim(); });
+    var ridCol = headers.indexOf("ReadingID");
+    if (ridCol < 0) return;
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][ridCol]) === readingId) {
+        readingSheet.deleteRow(i + 1);
+        return;
+      }
+    }
+  }
+
+  function writeReading(uid, readingId, eConsumption, eCharge, wConsumption, wCharge, ePrev, eCurrent, wPrev, wCurrent) {
+    var existingData = readingSheet.getDataRange().getValues();
+    var existingHeaders = existingData[0].map(function(h) { return String(h).trim(); });
+    var ridCol = existingHeaders.indexOf("ReadingID");
+    var exists = false;
+    if (ridCol >= 0) {
+      for (var i = 1; i < existingData.length; i++) {
+        if (String(existingData[i][ridCol]) === readingId) { exists = true; break; }
+      }
+    }
+    if (exists) {
+      if (!overwrite) {
+        // Signal duplicate to caller
+        return false;
+      }
+      deleteReadingById(readingId);
+    }
+    appendSheetRow(readingSheet, {
+      ReadingID:        readingId,
+      UnitID:           uid,
+      BillingMonth:     billingMonth,
+      Date:             today,
+      ElecPrev:         ePrev,
+      ElecCurrent:      eCurrent,
+      ElecConsumption:  eConsumption,
+      ElecRate:         elecRate,
+      ElecCharge:       eCharge,
+      WaterPrev:        wPrev,
+      WaterCurrent:     wCurrent,
+      WaterConsumption: wConsumption,
+      WaterRate:        waterRate,
+      WaterCharge:      wCharge,
+      Notes:            notes
+    });
+    return true;
+  }
+
+  if (billingType === "Combined" && combinedWith) {
+    // Split 50/50
+    var halfElec  = elecCharge  / 2;
+    var halfWater = waterCharge / 2;
+    var halfElecCons  = elecConsumption  / 2;
+    var halfWaterCons = waterConsumption / 2;
+
+    var rid1 = "R-" + unitId      + "-" + billingMonth;
+    var rid2 = "R-" + combinedWith + "-" + billingMonth;
+
+    var ok1 = writeReading(unitId,       rid1, halfElecCons, halfElec, halfWaterCons, halfWater,
+                           mode === "byReading" ? elecPrev : 0, mode === "byReading" ? elecCurrent : 0,
+                           mode === "byReading" ? waterPrev : 0, mode === "byReading" ? waterCurrent : 0);
+    if (ok1 === false) {
+      throw new Error("DUPLICATE:Reading already exists for " + unitId + " in " + billingMonth);
+    }
+
+    var ok2 = writeReading(combinedWith, rid2, halfElecCons, halfElec, halfWaterCons, halfWater,
+                           mode === "byReading" ? elecPrev : 0, mode === "byReading" ? elecCurrent : 0,
+                           mode === "byReading" ? waterPrev : 0, mode === "byReading" ? waterCurrent : 0);
+    if (ok2 === false) {
+      throw new Error("DUPLICATE:Reading already exists for " + combinedWith + " in " + billingMonth);
+    }
+  } else {
+    var rid = "R-" + unitId + "-" + billingMonth;
+    var ok  = writeReading(unitId, rid, elecConsumption, elecCharge, waterConsumption, waterCharge,
+                           mode === "byReading" ? elecPrev : 0, mode === "byReading" ? elecCurrent : 0,
+                           mode === "byReading" ? waterPrev : 0, mode === "byReading" ? waterCurrent : 0);
+    if (ok === false) {
+      throw new Error("DUPLICATE:Reading already exists for this unit and month");
+    }
+  }
+
+  return { elecCharge: elecCharge, waterCharge: waterCharge };
 }
 
 function addTenant(body) {
@@ -658,7 +843,29 @@ function moveTenant(body) {
 }
 
 function addExpense(body) {
-  return { message: "stub: addExpense", category: body.category };
+  var date     = String(body.date     || "").trim();
+  var category = String(body.category || "").trim();
+  var amount   = parseFloat(body.amount) || 0;
+  var payee    = String(body.payee    || "").trim();
+  var notes    = String(body.notes    || "").trim();
+
+  if (!date)     throw new Error("date is required");
+  if (!category) throw new Error("category is required");
+  if (amount <= 0) throw new Error("amount must be greater than 0");
+  if (!payee)    throw new Error("payee is required");
+
+  var expenseId = "EXP-" + Date.now();
+
+  appendSheetRow(getSheet("Expenses"), {
+    ExpenseID: expenseId,
+    Date:      date,
+    Category:  category,
+    Amount:    amount,
+    Payee:     payee,
+    Notes:     notes
+  });
+
+  return { success: true, data: { expenseId: expenseId } };
 }
 
 function updateConfig(body) {
@@ -918,4 +1125,232 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
 function testDashboard() {
   var result = getDashboardData();
   Logger.log(JSON.stringify(result));
+}
+
+// ============================================================
+// NOTES
+// ============================================================
+
+function getOrCreateNotesSheet() {
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName("Notes");
+  if (!sheet) {
+    sheet = ss.insertSheet("Notes");
+    sheet.appendRow(["Timestamp", "TenantID", "TenantName", "UnitID", "Note"]);
+  }
+  return sheet;
+}
+
+function addNote(body) {
+  var tenantId = String(body.tenantId || "").trim();
+  var note     = String(body.note     || "").trim();
+  if (!tenantId || !note) throw new Error("tenantId and note are required");
+
+  var tenants = sheetToJSON(getSheet("Tenants"));
+  var tenant  = tenants.filter(function(t) { return t["TenantID"] === tenantId; })[0];
+  if (!tenant) throw new Error("Tenant not found");
+
+  var notesSheet = getOrCreateNotesSheet();
+  var ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+  appendSheetRow(notesSheet, {
+    Timestamp:  ts,
+    TenantID:   tenantId,
+    TenantName: tenant["Name"] || "",
+    UnitID:     tenant["UnitID"] || "",
+    Note:       note
+  });
+  return { timestamp: ts };
+}
+
+// ============================================================
+// REMINDERS
+// ============================================================
+
+function buildReminderHtml(tenant, unit, unpaidMonths, balance, cfg) {
+  var propertyName = cfg["PropertyName"] || "JJ Apartment";
+  var adminContact = String(cfg["AdminContact"] || "N/A");
+  var unitName    = unit["UnitName"] || unit["UnitID"] || "";
+  var unitDisplay = unit["BuildingName"] ? unitName + " &middot; " + unit["BuildingName"] : unitName;
+  var tenantName  = tenant["Name"] || "";
+
+  function ph(n) { return "&#8369;" + Number(n || 0).toFixed(2); }
+
+  var monthRows = unpaidMonths.map(function(m) {
+    var items = [];
+    if (m.rent  > 0) items.push('<tr><td style="font-size:12px;color:#475569;padding:2px 0 0 12px;">Rent</td><td style="font-size:12px;color:#475569;text-align:right;padding:2px 0;">' + ph(m.rent)  + '</td></tr>');
+    if (m.elec  > 0) items.push('<tr><td style="font-size:12px;color:#475569;padding:2px 0 0 12px;">Electricity</td><td style="font-size:12px;color:#475569;text-align:right;padding:2px 0;">' + ph(m.elec)  + '</td></tr>');
+    if (m.water > 0) items.push('<tr><td style="font-size:12px;color:#475569;padding:2px 0 0 12px;">Water</td><td style="font-size:12px;color:#475569;text-align:right;padding:2px 0;">' + ph(m.water) + '</td></tr>');
+    return '<tr><td colspan="2" style="padding:6px 0 2px;"><div style="height:1px;background-color:#fee2e2;"></div></td></tr>'
+      + '<tr><td style="font-size:13px;font-weight:bold;color:#0f172a;padding:4px 0 2px;">' + m.month + '</td>'
+      + '<td style="font-size:13px;font-weight:bold;color:#ef4444;text-align:right;padding:4px 0 2px;">' + ph(m.total) + '</td></tr>'
+      + items.join('');
+  }).join('');
+
+  var totalBal = balance.total || 0;
+
+  return '<!DOCTYPE html>'
+    + '<html lang="en"><head>'
+    + '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<meta http-equiv="X-UA-Compatible" content="IE=edge">'
+    + '</head>'
+    + '<body style="margin:0;padding:0;background-color:#f7f8fc;font-family:Arial,Helvetica,sans-serif;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f7f8fc;padding:24px 0;">'
+    + '<tr><td align="center" style="padding:0 16px;">'
+    + '<table width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">'
+    + '<tr><td style="background-color:#0f172a;padding:24px 32px;border-radius:12px 12px 0 0;">'
+    + '<p style="font-size:20px;font-weight:bold;color:#ffffff;margin:0;line-height:1.3;">' + propertyName + '</p>'
+    + '<p style="font-size:13px;color:#8ea3c8;margin:6px 0 0 0;line-height:1.3;">Rental Balance Reminder</p>'
+    + '</td></tr>'
+    + '<tr><td style="padding:24px 32px;background-color:#ffffff;">'
+    + '<p style="font-size:15px;color:#0f172a;margin:0 0 8px 0;">Dear <strong>' + tenantName + '</strong>,</p>'
+    + '<p style="font-size:13px;color:#475569;margin:0 0 20px 0;line-height:1.6;">This is a friendly reminder regarding your outstanding rental balance for <strong>' + unitDisplay + '</strong>. Please settle your account at your earliest convenience.</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + '<tr>'
+    + '<td width="50%" style="padding:0 12px 14px 0;vertical-align:top;">'
+    + '<p style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Tenant</p>'
+    + '<p style="font-size:14px;color:#0f172a;font-weight:bold;margin:0;">' + tenantName + '</p>'
+    + '</td>'
+    + '<td width="50%" style="padding:0 0 14px 12px;vertical-align:top;text-align:right;">'
+    + '<p style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Unit</p>'
+    + '<p style="font-size:14px;color:#0f172a;font-weight:bold;margin:0;">' + unitDisplay + '</p>'
+    + '</td>'
+    + '</tr></table>'
+    + '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef2f2;border-radius:8px;margin-bottom:16px;">'
+    + '<tr><td style="padding:16px;">'
+    + '<p style="font-size:11px;color:#991b1b;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px 0;">Outstanding Balance</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + monthRows
+    + '<tr><td colspan="2" style="padding:8px 0 2px;"><div style="height:1px;background-color:#fca5a5;"></div></td></tr>'
+    + '<tr>'
+    + '<td style="font-size:14px;font-weight:bold;color:#ef4444;padding:4px 0 0;">Total</td>'
+    + '<td style="font-size:18px;font-weight:bold;color:#ef4444;text-align:right;padding:4px 0 0;">' + ph(totalBal) + '</td>'
+    + '</tr></table>'
+    + '</td></tr></table>'
+    + '<p style="font-size:13px;color:#475569;line-height:1.6;margin:0;">To make a payment or discuss your account, please contact us directly. Kindly include your unit number in any correspondence.</p>'
+    + '</td></tr>'
+    + '<tr><td style="background-color:#0f172a;padding:16px 32px;border-radius:0 0 12px 12px;">'
+    + '<p style="font-size:12px;color:#8ea3c8;margin:0;line-height:1.5;">For inquiries: ' + adminContact + '</p>'
+    + '<p style="font-size:11px;color:#3d5280;margin:4px 0 0 0;">JJariel Rentals &middot; JJ Apartment RMS</p>'
+    + '</td></tr>'
+    + '</table>'
+    + '</td></tr></table>'
+    + '</body></html>';
+}
+
+function sendReminder(body) {
+  var tenantId = String(body.tenantId || "").trim();
+  if (!tenantId) throw new Error("tenantId is required");
+
+  var tenants = sheetToJSON(getSheet("Tenants"));
+  var tenant  = tenants.filter(function(t) { return t["TenantID"] === tenantId; })[0];
+  if (!tenant) throw new Error("Tenant not found");
+
+  var tenantEmail = String(tenant["Email"] || "").trim();
+  if (!tenantEmail) throw new Error("Tenant has no email address on file");
+
+  var units = sheetToJSON(getSheet("Units"));
+  var unit  = units.filter(function(u) { return u["UnitID"] === tenant["UnitID"]; })[0] || {};
+  var buildings = sheetToJSON(getSheet("Buildings"));
+  var bldMap = {};
+  buildings.forEach(function(b) { bldMap[b["BuildingID"]] = b["BuildingName"]; });
+  unit["BuildingName"] = bldMap[unit["BuildingID"]] || "";
+
+  var cfg     = getConfig();
+  var balance = computeBalance(tenantId);
+
+  var ledger = sheetToJSON(getSheet("Ledger")).filter(function(r) {
+    return String(r["TenantID"]) === tenantId;
+  });
+  var monthMap = {};
+  ledger.forEach(function(r) {
+    var m = String(r["BillingMonth"] || "").trim().substring(0, 7);
+    if (!m) return;
+    var isDepositCredit = String(r["Direction"] || "").trim() === "Credit" &&
+      String(r["Notes"] || "").toLowerCase().indexOf("deposit") !== -1;
+    if (isDepositCredit) return;
+    if (!monthMap[m]) monthMap[m] = { rent: 0, elec: 0, water: 0 };
+    var sign = String(r["Direction"] || "").trim() === "Debit" ? 1 : -1;
+    monthMap[m].rent  += sign * (parseFloat(r["RentAmount"])  || 0);
+    monthMap[m].elec  += sign * (parseFloat(r["ElecAmount"])  || 0);
+    monthMap[m].water += sign * (parseFloat(r["WaterAmount"]) || 0);
+  });
+  var unpaidMonths = Object.keys(monthMap)
+    .filter(function(m) { var mo = monthMap[m]; return (mo.rent + mo.elec + mo.water) > 0; })
+    .sort()
+    .map(function(m) {
+      var mo = monthMap[m];
+      return { month: m, rent: mo.rent, elec: mo.elec, water: mo.water, total: mo.rent + mo.elec + mo.water };
+    });
+
+  var unitName    = unit["UnitName"] || unit["UnitID"] || "";
+  var unitDisplay = unit["BuildingName"] ? unitName + " · " + unit["BuildingName"] : unitName;
+  var subject     = "Rental Reminder — " + (tenant["Name"] || "") + " " + (unit["UnitID"] || "");
+  var adminContact = String(cfg["AdminContact"] || "N/A");
+
+  var plainText = "Dear " + (tenant["Name"] || "") + ",\n\n"
+    + "This is a friendly reminder regarding your outstanding rental balance.\n\n"
+    + "Unit: " + unitDisplay + "\n\n";
+  unpaidMonths.forEach(function(m) {
+    plainText += m.month + ": ₱" + m.total.toFixed(2) + "\n";
+  });
+  plainText += "\nTotal Balance: ₱" + (balance.total || 0).toFixed(2)
+    + "\n\nPlease coordinate with the admin to settle your balance at your earliest convenience."
+    + "\n\nFor inquiries: " + adminContact;
+
+  var html = buildReminderHtml(tenant, unit, unpaidMonths, balance, cfg);
+  GmailApp.sendEmail(tenantEmail, subject, plainText, { htmlBody: html });
+
+  var adminEmail = String(cfg["AdminEmail"] || "").trim();
+  if (adminEmail) {
+    GmailApp.sendEmail(adminEmail, "[ADMIN COPY] " + subject,
+      "Admin copy — reminder sent to " + tenantEmail + "\n\n" + plainText,
+      { htmlBody: html });
+  }
+
+  return { sent: true, to: tenantEmail };
+}
+
+// ============================================================
+// UPDATE TENANT
+// ============================================================
+
+function updateTenant(body) {
+  var tenantId = String(body.tenantId || "").trim();
+  var name     = String(body.name     || "").trim();
+  var contact  = String(body.contact  || "").trim();
+  var email    = String(body.email    || "").trim();
+  var pin      = String(body.pin      || "").trim();
+  var advance  = parseFloat(body.advance);
+  var deposit  = parseFloat(body.deposit);
+
+  if (!tenantId) throw new Error("tenantId is required");
+  if (!name)     throw new Error("Name is required");
+  if (pin && !/^\d{4}$/.test(pin)) throw new Error("PIN must be exactly 4 digits");
+
+  var sheet   = getSheet("Tenants");
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0].map(function(h) { return String(h).trim(); });
+
+  var tidCol     = headers.indexOf("TenantID");
+  var nameCol    = headers.indexOf("Name");
+  var contactCol = headers.indexOf("Contact");
+  var emailCol   = headers.indexOf("Email");
+  var pinCol     = headers.indexOf("PIN");
+  var advanceCol = headers.indexOf("Advance");
+  var depositCol = headers.indexOf("Deposit");
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][tidCol]) !== tenantId) continue;
+    var rowNum = i + 1;
+    sheet.getRange(rowNum, nameCol + 1).setValue(name);
+    if (contactCol >= 0) sheet.getRange(rowNum, contactCol + 1).setValue(contact);
+    if (emailCol   >= 0) sheet.getRange(rowNum, emailCol   + 1).setValue(email);
+    if (pin && pinCol >= 0) sheet.getRange(rowNum, pinCol  + 1).setValue(pin);
+    if (advanceCol >= 0 && !isNaN(advance)) sheet.getRange(rowNum, advanceCol + 1).setValue(advance);
+    if (depositCol >= 0 && !isNaN(deposit)) sheet.getRange(rowNum, depositCol + 1).setValue(deposit);
+    return { tenantId: tenantId, updated: true };
+  }
+
+  throw new Error("Tenant not found");
 }
