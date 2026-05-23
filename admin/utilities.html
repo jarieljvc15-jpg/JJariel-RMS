@@ -243,6 +243,10 @@
       display: flex;
       gap: 8px;
     }
+    /* Tenant name line in unit rows */
+    .unit-tenant { font-size: 12px; margin-top: 2px; }
+    .unit-tenant--occupied { color: var(--text-secondary); font-weight: 500; }
+    .unit-tenant--vacant { color: var(--text-muted); font-style: italic; }
     /* Panel */
     .panel-overlay {
       position: fixed; inset: 0;
@@ -330,7 +334,7 @@
 <!-- Bottom nav -->
 <nav class="bottom-nav">
   <a href="./index.html" class="bottom-nav-item">
-    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
     <span>Home</span>
   </a>
   <a href="./tenants.html" class="bottom-nav-item">
@@ -539,6 +543,7 @@
   // State
   let allUnits = [];
   let allReadings = [];
+  let tenantByUnit = {};
   let elecRateDefault = 0;
   let waterRateDefault = 0;
   // Per-unit previous readings map: unitId -> { elecPrev, waterPrev }
@@ -566,9 +571,10 @@
     }, 10000);
 
     try {
-      const [unitsRes, readingsRes] = await Promise.all([
+      const [unitsRes, readingsRes, tenantsRes] = await Promise.all([
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getUnits').then(r => r.json()),
-        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month)).then(r => r.json())
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month)).then(r => r.json()),
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants').then(r => r.json())
       ]);
       clearTimeout(timeoutId);
 
@@ -577,6 +583,11 @@
 
       allUnits = unitsRes.data || [];
       allReadings = readingsRes.data || [];
+
+      tenantByUnit = {};
+      if (tenantsRes.success && tenantsRes.data) {
+        tenantsRes.data.forEach(t => { if (t.UnitID) tenantByUnit[t.UnitID] = t.Name; });
+      }
 
       // Build prev readings map from returned data
       prevReadingsMap = {};
@@ -640,11 +651,16 @@
           actionHtml = '<button class="btn btn--outline btn--sm" onclick="openLogPanel(\'' + escHtml(u.UnitID) + '\')">Log Reading</button>';
         }
 
+        const tenantName = tenantByUnit[u.UnitID];
+        const tenantLine = tenantName
+          ? '<div class="unit-tenant unit-tenant--occupied">' + escHtml(tenantName) + '</div>'
+          : '<div class="unit-tenant unit-tenant--vacant">Vacant</div>';
         return '<div class="unit-row">'
           + '<div class="unit-id-badge">' + escHtml(u.UnitID) + '</div>'
           + '<div class="unit-info">'
           + '<div class="unit-name">' + escHtml(u.UnitName) + '</div>'
           + '<div class="unit-building">' + escHtml(u.BuildingName || '') + '</div>'
+          + tenantLine
           + sharedNote
           + '</div>'
           + '<div class="unit-actions">'
