@@ -96,6 +96,16 @@
       color: var(--text-muted);
       margin-top: 2px;
     }
+    .unit-tenant-name {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+    .unit-tenant-vacant {
+      color: var(--text-muted);
+      font-style: italic;
+    }
     .unit-actions {
       display: flex;
       flex-direction: column;
@@ -304,7 +314,7 @@
 </header>
 
 <!-- Page content -->
-<main class="page-content">
+<main class="page-content" style="padding-bottom: 80px;">
 
   <!-- Month selector -->
   <div class="month-row">
@@ -548,6 +558,8 @@
   let waterRateDefault = 0;
   // Per-unit previous readings map: unitId -> { elecPrev, waterPrev }
   let prevReadingsMap = {};
+  // unitId -> tenant name (undefined = vacant)
+  let tenantByUnit = {};
 
   // Current panel state
   let activeUnit = null;

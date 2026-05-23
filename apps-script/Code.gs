@@ -21,6 +21,7 @@ function doGet(e) {
       case "getBalance":     return respond(getBalance(params));
       case "getReadings":    return respond(getReadings(params));
       case "getExpenses":    return respond(getExpenses(params));
+      case "getNotes":       return respond(getNotes(params));
       case "verifyTenant":   return respond(verifyTenant(params));
       case "getDashboard":   return respond(getDashboardData());
       default:
@@ -231,6 +232,36 @@ function getLedger(params) {
   if (params.billingMonth) {
     rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
+
+  // Enrich rows with human-readable tenant and unit display names
+  var allTenants = sheetToJSON(getSheet("Tenants"));
+  var allUnits   = sheetToJSON(getSheet("Units"));
+  var buildings  = sheetToJSON(getSheet("Buildings"));
+
+  var tenantNameMap = {};
+  allTenants.forEach(function(t) {
+    tenantNameMap[String(t["TenantID"])] = t["Name"] || "";
+  });
+
+  var bldMap = {};
+  buildings.forEach(function(b) {
+    bldMap[String(b["BuildingID"])] = b["BuildingName"] || "";
+  });
+  var unitDisplayMap = {};
+  allUnits.forEach(function(u) {
+    var bldName = bldMap[String(u["BuildingID"])] || "";
+    unitDisplayMap[String(u["UnitID"])] = bldName
+      ? (u["UnitName"] || "") + " · " + bldName
+      : (u["UnitName"] || u["UnitID"] || "");
+  });
+
+  rows = rows.map(function(r) {
+    var tid = String(r["TenantID"] || "");
+    var uid = String(r["UnitID"] || "");
+    r["TenantName"]     = (tid && tenantNameMap[tid]) ? tenantNameMap[tid] : (tid || "—");
+    r["UnitDisplayName"] = (uid && unitDisplayMap[uid]) ? unitDisplayMap[uid] : (uid || "—");
+    return r;
+  });
 
   // Sort newest first by Date
   rows.sort(function(a, b) {
@@ -1160,6 +1191,19 @@ function addNote(body) {
     Note:       note
   });
   return { timestamp: ts };
+}
+
+function getNotes(params) {
+  if (!params.tenantId) throw new Error("tenantId is required");
+  var rows = sheetToJSON(getOrCreateNotesSheet()).filter(function(r) {
+    return String(r["TenantID"]) === String(params.tenantId);
+  });
+  rows.sort(function(a, b) {
+    var ta = String(a["Timestamp"] || "");
+    var tb = String(b["Timestamp"] || "");
+    return ta < tb ? 1 : ta > tb ? -1 : 0;
+  });
+  return rows;
 }
 
 // ============================================================
