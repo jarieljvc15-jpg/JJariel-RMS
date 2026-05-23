@@ -578,10 +578,11 @@
     }, 10000);
 
     try {
-      const [unitsRes, readingsRes, tenantsRes] = await Promise.all([
+      const [unitsRes, readingsRes, tenantsRes, configRes] = await Promise.all([
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getUnits').then(r => r.json()),
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month)).then(r => r.json()),
-        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants').then(r => r.json())
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants').then(r => r.json()),
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getConfig').then(r => r.json())
       ]);
       clearTimeout(timeoutId);
 
@@ -590,6 +591,11 @@
 
       allUnits = unitsRes.data || [];
       allReadings = readingsRes.data || [];
+
+      if (configRes.success && configRes.data) {
+        elecRateDefault  = parseFloat(configRes.data['ElecRate'])  || 0;
+        waterRateDefault = parseFloat(configRes.data['WaterRate']) || 0;
+      }
 
       // Build unitId → tenant name map
       tenantByUnit = {};
@@ -851,31 +857,49 @@
     btn.disabled = true;
     btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Saving…';
 
-    const month = monthPicker.value;
-    let payload = {
-      action: 'saveReading',
-      adminToken: localStorage.getItem('adminToken'),
-      unitId: activeUnit.UnitID,
-      billingMonth: month,
-      mode: currentMode,
-      overwrite: overwrite
-    };
+    const unitId       = activeUnit.UnitID;
+    const billingMonth = monthPicker.value;
+    const mode         = currentMode;
 
-    if (currentMode === 'byReading') {
-      payload.elecPrev    = parseFloat(document.getElementById('elecPrev').value)    || 0;
-      payload.elecCurrent = parseFloat(document.getElementById('elecCurrent').value) || 0;
-      payload.waterPrev   = parseFloat(document.getElementById('waterPrev').value)   || 0;
-      payload.waterCurrent = parseFloat(document.getElementById('waterCurrent').value) || 0;
-      payload.elecRate    = parseFloat(document.getElementById('elecRate').value)    || 0;
-      payload.waterRate   = parseFloat(document.getElementById('waterRate').value)   || 0;
+    const elecPrev     = parseFloat(document.getElementById('elecPrev').value)    || 0;
+    const elecCurrent  = parseFloat(document.getElementById('elecCurrent').value) || 0;
+    const elecRate     = parseFloat(document.getElementById('elecRate').value)     || 0;
+    const waterPrev    = parseFloat(document.getElementById('waterPrev').value)    || 0;
+    const waterCurrent = parseFloat(document.getElementById('waterCurrent').value) || 0;
+    const waterRate    = parseFloat(document.getElementById('waterRate').value)    || 0;
+
+    let elecCharge, waterCharge, notes;
+    if (mode === 'byReading') {
+      elecCharge  = Math.max(0, elecCurrent - elecPrev)  * elecRate;
+      waterCharge = Math.max(0, waterCurrent - waterPrev) * waterRate;
+      notes = '';
     } else {
-      payload.elecCharge  = parseFloat(document.getElementById('directElec').value)  || 0;
-      payload.waterCharge = parseFloat(document.getElementById('directWater').value) || 0;
-      payload.notes       = document.getElementById('directNote').value.trim();
+      elecCharge  = parseFloat(document.getElementById('directElec').value)  || 0;
+      waterCharge = parseFloat(document.getElementById('directWater').value) || 0;
+      notes       = document.getElementById('directNote').value.trim();
     }
 
     try {
-      const json = await postJSON(payload);
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action:       'saveReading',
+          adminToken:   localStorage.getItem('adminToken'),
+          unitId:       unitId,
+          billingMonth: billingMonth,
+          mode:         mode,
+          elecPrev:     elecPrev,
+          elecCurrent:  elecCurrent,
+          waterPrev:    waterPrev,
+          waterCurrent: waterCurrent,
+          elecCharge:   elecCharge,
+          waterCharge:  waterCharge,
+          notes:        notes,
+          overwrite:    overwrite
+        })
+      });
+      const json = await res.json();
 
       if (!json.success) {
         if (json.error && json.error.indexOf('DUPLICATE:') === 0) {

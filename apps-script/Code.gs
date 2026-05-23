@@ -24,6 +24,7 @@ function doGet(e) {
       case "getNotes":       return respond(getNotes(params));
       case "verifyTenant":   return respond(verifyTenant(params));
       case "getDashboard":   return respond(getDashboardData());
+      case "getConfig":      return respond(getConfig());
       default:
         return respond(null, "Unknown action: " + action);
     }
