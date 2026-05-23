@@ -565,8 +565,8 @@ function uploadProof(e) {
   var decoded = Utilities.base64Decode(base64Image);
   var blob    = Utilities.newBlob(decoded, "image/jpeg", fileName);
 
-  var folders = DriveApp.getFoldersByName("JJ Apartment Proofs");
-  var folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder("JJ Apartment Proofs");
+  var folders = DriveApp.getFoldersByName("JJ Apartment - Payment Proofs");
+  var folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder("JJ Apartment - Payment Proofs");
 
   var file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
