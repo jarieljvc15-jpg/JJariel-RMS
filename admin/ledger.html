@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ledger — JJ Apartment RMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    /* Sticky filters */
+    .filters-bar {
+      position: sticky;
+      top: 56px;
+      z-index: 50;
+      background: var(--off-white);
+      padding: 10px 0 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0;
+    }
+    .filters-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .filters-row select,
+    .filters-row input[type="month"] {
+      font-size: 13px;
+      padding: 7px 10px;
+      flex: 1;
+      min-width: 110px;
+      max-width: 160px;
+    }
+    .filter-clear {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 500;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 0;
+      white-space: nowrap;
+    }
+    .filter-clear:hover { text-decoration: underline; }
+    /* Summary row */
+    .summary-row {
+      display: flex;
+      gap: 0;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin: 12px 0 14px;
+      overflow: hidden;
+    }
+    .summary-cell {
+      flex: 1;
+      padding: 10px 12px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .summary-cell:last-child { border-right: none; }
+    .summary-cell-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .summary-cell-value {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .summary-cell-value--debit  { color: var(--danger); }
+    .summary-cell-value--credit { color: var(--success); }
+    .summary-cell-value--net    { color: var(--text-primary); }
+    /* Table */
+    .ledger-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th {
+      text-align: left;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      background: var(--navy-50);
+    }
+    td {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-primary);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover td { background: var(--navy-50); }
+    .txn-id-badge {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      background: var(--navy-50);
+      color: var(--navy-600);
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .col-amount {
+      text-align: right;
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .col-dash {
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+    .dir-debit  { color: var(--danger); font-weight: 600; font-size: 11px; }
+    .dir-credit { color: var(--success); font-weight: 600; font-size: 11px; }
+    /* Type badges */
+    .badge-type {
+      display: inline-flex; align-items: center;
+      font-size: 10px; font-weight: 600;
+      border-radius: var(--radius-pill);
+      padding: 2px 7px;
+      white-space: nowrap;
+    }
+    .badge-type--bill       { background: var(--navy-100); color: var(--navy-500); }
+    .badge-type--payment    { background: var(--success-bg); color: #065f46; }
+    .badge-type--credit     { background: var(--accent-light); color: var(--accent-dark); }
+    .badge-type--adjustment { background: var(--warning-bg); color: #92400e; }
+    .ref-mono {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    /* Panel */
+    .panel-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: none; align-items: flex-end;
+    }
+    .panel-overlay.open { display: flex; }
+    .panel {
+      background: var(--white);
+      width: 100%;
+      max-height: 92vh;
+      border-radius: 16px 16px 0 0;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700; font-size: 16px;
+      color: var(--text-primary);
+    }
+    .panel-close {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px; border: none; background: none;
+      cursor: pointer; color: var(--text-secondary);
+    }
+    .panel-close:hover { background: rgba(0,0,0,0.06); }
+    .panel-close svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .panel-body { overflow-y: auto; padding: 16px; flex: 1; }
+    .detail-amount-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .detail-total {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      color: var(--text-primary);
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: var(--text-secondary); font-weight: 500; }
+    .detail-value { color: var(--text-primary); font-weight: 600; text-align: right; max-width: 55%; word-break: break-word; }
+    .detail-breakdown {
+      background: var(--navy-50);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      margin: 12px 0;
+    }
+    .detail-breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      padding: 3px 0;
+      color: var(--text-secondary);
+    }
+    .detail-breakdown-row strong {
+      color: var(--text-primary);
+    }
+    /* Section header */
+    .section-header {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 4px 0 8px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<header class="topbar">
+  <span class="topbar-title">Ledger</span>
+</header>
+
+<!-- Page content -->
+<main class="page-content" style="padding-top: 0;">
+
+  <!-- Filters (sticky below topbar) -->
+  <div class="filters-bar">
+    <div class="filters-row">
+      <select class="form-select" id="filterTenant">
+        <option value="">All Tenants</option>
+      </select>
+      <select class="form-select" id="filterUnit">
+        <option value="">All Units</option>
+      </select>
+      <input class="form-input" id="filterMonth" type="month">
+      <button class="filter-clear" id="clearFilters">Clear filters</button>
+      <button class="btn btn--accent btn--sm" id="filterBtn" style="white-space:nowrap;">Filter</button>
+    </div>
+  </div>
+
+  <!-- Content area with its own padding -->
+  <div style="padding: 0 0 80px;">
+
+    <!-- Summary row -->
+    <div class="summary-row" id="summaryRow">
+      <div class="summary-cell">
+        <div class="summary-cell-label">Debits</div>
+        <div class="summary-cell-value summary-cell-value--debit" id="sumDebits">₱0.00</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-cell-label">Credits</div>
+        <div class="summary-cell-value summary-cell-value--credit" id="sumCredits">₱0.00</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-cell-label">Net</div>
+        <div class="summary-cell-value summary-cell-value--net" id="sumNet">₱0.00</div>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loadingState" style="display:flex;align-items:center;gap:8px;padding:40px 0;justify-content:center;">
+      <div class="spinner"></div>
+      <span class="text-muted">Loading ledger…</span>
+    </div>
+
+    <!-- Error state -->
+    <div id="errorState" class="hidden">
+      <div class="alert alert--danger">
+        <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="errorMsg">Failed to load data.</span>
+      </div>
+    </div>
+
+    <!-- Ledger content -->
+    <div id="ledgerContent" class="hidden">
+      <div class="ledger-table-wrap" id="tableWrap"></div>
+      <div id="emptyState" class="hidden" style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:14px;">
+        No transactions found for the selected filters
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <a href="./index.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="./tenants.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    <span>Tenants</span>
+  </a>
+  <a href="./billing.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    <span>Billing</span>
+  </a>
+  <a href="./ledger.html" class="bottom-nav-item active">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <span>Ledger</span>
+  </a>
+  <button class="bottom-nav-item" id="moreBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
+<!-- More drawer -->
+<div class="drawer-overlay" id="moreDrawer">
+  <div class="drawer" role="dialog" aria-label="More options">
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">More</div>
+    <a href="./units.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="drawer-item-label">Units</span>
+    </a>
+    <a href="./utilities.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span class="drawer-item-label">Utilities</span>
+    </a>
+    <a href="./expenses.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <span class="drawer-item-label">Expenses</span>
+    </a>
+  </div>
+</div>
+
+<!-- Transaction detail slide-up -->
+<div class="panel-overlay" id="txnPanel">
+  <div class="panel" role="dialog" aria-label="Transaction Detail">
+    <div class="panel-header">
+      <div class="panel-title" id="txnPanelTitle">Transaction</div>
+      <button class="panel-close" id="txnPanelClose">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="panel-body" id="txnPanelBody"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../assets/config.js"></script>
+<script src="../assets/quick-payment.js"></script>
+<script>
+(function () {
+  if (!localStorage.getItem('adminToken')) {
+    window.location.href = '../index.html';
+    return;
+  }
+
+  const drawer = document.getElementById('moreDrawer');
+  document.getElementById('moreBtn').addEventListener('click', () => drawer.classList.add('open'));
+  drawer.addEventListener('click', (e) => { if (e.target === drawer) drawer.classList.remove('open'); });
+
+  const now = new Date();
+  const currentMonthStr = now.toISOString().substring(0, 7);
+
+  // Default month filter to current month
+  document.getElementById('filterMonth').value = currentMonthStr;
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function peso(n) {
+    const v = parseFloat(n) || 0;
+    return '₱' + v.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function showToast(msg, type) {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    const ok = type === 'success';
+    t.className = 'alert alert--' + (ok ? 'success' : 'danger') + ' toast';
+    t.innerHTML = ok
+      ? '<svg viewBox="0 0 24 24" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg><span>' + msg + '</span>'
+      : '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>' + msg + '</span>';
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+
+  let allRows = [];
+
+  function typeBadge(type) {
+    const map = {
+      Bill:       'badge-type--bill',
+      Payment:    'badge-type--payment',
+      Credit:     'badge-type--credit',
+      Adjustment: 'badge-type--adjustment'
+    };
+    return '<span class="badge-type ' + (map[type] || 'badge-type--bill') + '">' + escHtml(type || '—') + '</span>';
+  }
+
+  function amountCell(n) {
+    const v = parseFloat(n) || 0;
+    return v === 0
+      ? '<span class="col-dash">—</span>'
+      : peso(v);
+  }
+
+  // Populate tenant & unit dropdowns
+  async function initFilters() {
+    try {
+      const [tRes, uRes] = await Promise.all([
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants').then(r => r.json()),
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getUnits').then(r => r.json())
+      ]);
+      if (tRes.success && tRes.data) {
+        const tenantSel = document.getElementById('filterTenant');
+        tRes.data.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.TenantID;
+          opt.textContent = t.Name + ' (' + (t.UnitName || t.UnitID) + ')';
+          tenantSel.appendChild(opt);
+        });
+      }
+      if (uRes.success && uRes.data) {
+        const unitSel = document.getElementById('filterUnit');
+        uRes.data.forEach(u => {
+          const opt = document.createElement('option');
+          opt.value = u.UnitID;
+          opt.textContent = u.UnitName + ' — ' + (u.BuildingName || u.UnitID);
+          unitSel.appendChild(opt);
+        });
+      }
+    } catch (_) {}
+  }
+
+  async function loadLedger() {
+    const loading = document.getElementById('loadingState');
+    const error = document.getElementById('errorState');
+    const content = document.getElementById('ledgerContent');
+
+    const tenantId = document.getElementById('filterTenant').value;
+    const unitId   = document.getElementById('filterUnit').value;
+    const month    = document.getElementById('filterMonth').value;
+
+    loading.classList.remove('hidden'); loading.style.display = 'flex';
+    error.classList.add('hidden');
+    content.classList.add('hidden');
+
+    const timeoutId = setTimeout(() => {
+      loading.style.display = 'none';
+      error.classList.remove('hidden');
+      document.getElementById('errorMsg').textContent = 'Request timed out after 10 seconds.';
+    }, 10000);
+
+    try {
+      let url = CONFIG.APPS_SCRIPT_URL + '?action=getLedger';
+      if (tenantId) url += '&tenantId=' + encodeURIComponent(tenantId);
+      if (unitId)   url += '&unitId='   + encodeURIComponent(unitId);
+      if (month)    url += '&billingMonth=' + encodeURIComponent(month);
+
+      const res  = await fetch(url);
+      const json = await res.json();
+      clearTimeout(timeoutId);
+
+      if (!json.success) throw new Error(json.error || 'Failed to load ledger');
+
+      allRows = json.data || [];
+      loading.style.display = 'none';
+      content.classList.remove('hidden');
+      renderLedger(allRows);
+    } catch (err) {
+      clearTimeout(timeoutId);
+      loading.style.display = 'none';
+      error.classList.remove('hidden');
+      document.getElementById('errorMsg').textContent = err.message || 'Failed to load ledger.';
+    }
+  }
+
+  function renderLedger(rows) {
+    const tableWrap = document.getElementById('tableWrap');
+    const emptyState = document.getElementById('emptyState');
+
+    // Compute summary
+    let debits = 0, credits = 0;
+    rows.forEach(r => {
+      const amt = parseFloat(r.TotalAmount) || 0;
+      if (r.Direction === 'Debit')  debits  += amt;
+      if (r.Direction === 'Credit') credits += amt;
+    });
+    const net = debits - credits;
+    document.getElementById('sumDebits').textContent  = peso(debits);
+    document.getElementById('sumCredits').textContent = peso(credits);
+    const netEl = document.getElementById('sumNet');
+    netEl.textContent = peso(Math.abs(net));
+    netEl.className = 'summary-cell-value ' + (net > 0 ? 'summary-cell-value--debit' : net < 0 ? 'summary-cell-value--credit' : 'summary-cell-value--net');
+
+    if (rows.length === 0) {
+      tableWrap.innerHTML = '';
+      emptyState.classList.remove('hidden');
+      return;
+    }
+    emptyState.classList.add('hidden');
+
+    tableWrap.innerHTML = '<table>'
+      + '<thead><tr>'
+      + '<th>Date</th>'
+      + '<th>TxnID</th>'
+      + '<th>Tenant</th>'
+      + '<th>Unit</th>'
+      + '<th>Month</th>'
+      + '<th>Type</th>'
+      + '<th style="text-align:right;">Rent</th>'
+      + '<th style="text-align:right;">Elec</th>'
+      + '<th style="text-align:right;">Water</th>'
+      + '<th style="text-align:right;">Total</th>'
+      + '<th>Dir</th>'
+      + '<th>Mode</th>'
+      + '<th>Ref</th>'
+      + '</tr></thead>'
+      + '<tbody>'
+      + rows.map((r, idx) => {
+          const dirClass = r.Direction === 'Debit' ? 'dir-debit' : 'dir-credit';
+          const ref = String(r.ReferenceNo || '');
+          return '<tr data-idx="' + idx + '">'
+            + '<td style="white-space:nowrap;font-size:11px;">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</td>'
+            + '<td><span class="txn-id-badge">' + escHtml(r.TxnID || '—') + '</span></td>'
+            + '<td style="font-size:12px;">' + escHtml(r.TenantID || '—') + '</td>'
+            + '<td style="font-size:12px;">' + escHtml(r.UnitID || '—') + '</td>'
+            + '<td style="font-size:11px;white-space:nowrap;">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</td>'
+            + '<td>' + typeBadge(r.TxnType) + '</td>'
+            + '<td class="col-amount">' + amountCell(r.RentAmount)  + '</td>'
+            + '<td class="col-amount">' + amountCell(r.ElecAmount)  + '</td>'
+            + '<td class="col-amount">' + amountCell(r.WaterAmount) + '</td>'
+            + '<td class="col-amount">' + amountCell(r.TotalAmount) + '</td>'
+            + '<td class="' + dirClass + '">' + escHtml(r.Direction || '—') + '</td>'
+            + '<td style="font-size:11px;color:var(--text-muted);">' + escHtml(r.PaymentMode || '') + '</td>'
+            + '<td>' + (ref ? '<span class="ref-mono">' + escHtml(ref) + '</span>' : '') + '</td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>';
+
+    tableWrap.querySelectorAll('tbody tr').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = parseInt(row.dataset.idx, 10);
+        if (!isNaN(idx)) openTxnDetail(allRows[idx]);
+      });
+    });
+  }
+
+  function openTxnDetail(r) {
+    let title = 'Transaction';
+    let headerIcon = '';
+    if (r.TxnType === 'Bill') {
+      title = 'Bill for ' + String(r.BillingMonth || '').substring(0, 7);
+    } else if (r.TxnType === 'Payment') {
+      title = 'Payment Received';
+      headerIcon = '<svg viewBox="0 0 24 24" width="18" height="18" style="color:var(--success);flex-shrink:0;" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    } else if (r.TxnType === 'Credit') {
+      title = 'Credit';
+    } else if (r.TxnType === 'Adjustment') {
+      title = 'Adjustment';
+    }
+    document.getElementById('txnPanelTitle').textContent = title;
+
+    const rent  = parseFloat(r.RentAmount)  || 0;
+    const elec  = parseFloat(r.ElecAmount)  || 0;
+    const water = parseFloat(r.WaterAmount) || 0;
+    const total = parseFloat(r.TotalAmount) || 0;
+
+    const ref   = String(r.ReferenceNo  || '');
+    const mode  = String(r.PaymentMode  || '');
+    const notes = String(r.Notes        || '');
+
+    document.getElementById('txnPanelBody').innerHTML =
+      '<div class="detail-amount-row">'
+      + headerIcon
+      + '<div class="detail-total">' + peso(total) + '</div>'
+      + '<div style="margin-left:auto;">' + (r.Direction === 'Debit'
+          ? '<span class="dir-debit">Debit</span>'
+          : '<span class="dir-credit">Credit</span>') + '</div>'
+      + '</div>'
+
+      + '<div class="section-header">Breakdown</div>'
+      + '<div class="detail-breakdown">'
+      + (rent  !== 0 ? '<div class="detail-breakdown-row"><span>Rent</span><strong>' + peso(rent) + '</strong></div>' : '')
+      + (elec  !== 0 ? '<div class="detail-breakdown-row"><span>Electric</span><strong>' + peso(elec) + '</strong></div>' : '')
+      + (water !== 0 ? '<div class="detail-breakdown-row"><span>Water</span><strong>' + peso(water) + '</strong></div>' : '')
+      + '</div>'
+
+      + '<div class="section-header">Details</div>'
+      + '<div class="detail-row"><span class="detail-label">TxnID</span><span class="detail-value" style="font-family:monospace;font-size:11px;">' + escHtml(r.TxnID || '—') + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">' + escHtml(r.TenantID || '—') + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Unit</span><span class="detail-value">' + escHtml(r.UnitID || '—') + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Billing Month</span><span class="detail-value">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">' + typeBadge(r.TxnType) + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Direction</span><span class="detail-value">' + (r.Direction === 'Debit' ? '<span class="dir-debit">Debit</span>' : '<span class="dir-credit">Credit</span>') + '</span></div>'
+      + (mode  ? '<div class="detail-row"><span class="detail-label">Payment Mode</span><span class="detail-value">' + escHtml(mode) + '</span></div>' : '')
+      + (ref   ? '<div class="detail-row"><span class="detail-label">Reference No.</span><span class="detail-value"><span class="ref-mono">' + escHtml(ref) + '</span></span></div>' : '')
+      + (notes ? '<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">' + escHtml(notes) + '</span></div>' : '');
+
+    document.getElementById('txnPanel').classList.add('open');
+  }
+
+  // Filters
+  document.getElementById('filterBtn').addEventListener('click', loadLedger);
+  document.getElementById('clearFilters').addEventListener('click', () => {
+    document.getElementById('filterTenant').value = '';
+    document.getElementById('filterUnit').value   = '';
+    document.getElementById('filterMonth').value  = currentMonthStr;
+    loadLedger();
+  });
+
+  // Panel close
+  document.getElementById('txnPanelClose').addEventListener('click', () => {
+    document.getElementById('txnPanel').classList.remove('open');
+  });
+  document.getElementById('txnPanel').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('txnPanel'))
+      document.getElementById('txnPanel').classList.remove('open');
+  });
+
+  initFilters().then(() => loadLedger());
+})();
+</script>
+</body>
+</html>
