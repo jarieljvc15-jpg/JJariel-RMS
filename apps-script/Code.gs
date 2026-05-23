@@ -223,14 +223,22 @@ function getLedger(params) {
   var rows = sheetToJSON(getSheet("Ledger"));
 
   if (params.tenantId) {
-    rows = rows.filter(function(r) { return r["TenantID"] === params.tenantId; });
+    rows = rows.filter(function(r) { return String(r["TenantID"]) === String(params.tenantId); });
   }
   if (params.unitId) {
-    rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
+    rows = rows.filter(function(r) { return String(r["UnitID"]) === String(params.unitId); });
   }
   if (params.billingMonth) {
     rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
+
+  // Sort newest first by Date
+  rows.sort(function(a, b) {
+    var da = String(a["Date"] || "");
+    var db = String(b["Date"] || "");
+    return da < db ? 1 : da > db ? -1 : 0;
+  });
+
   return rows;
 }
 
@@ -240,10 +248,52 @@ function getBalance(params) {
 }
 
 function getReadings(params) {
-  var rows = sheetToJSON(getSheet("UtilityReadings"));
+  var allRows = sheetToJSON(getSheet("UtilityReadings"));
 
+  // If filtering by billingMonth only (utilities page load), return readings for that month
+  // plus a previousReading field for each unit for pre-filling the form.
+  if (params.billingMonth && !params.unitId) {
+    var targetMonth = normMonth(params.billingMonth);
+
+    // Build map of most-recent reading before targetMonth for each unit
+    var prevMap = {};
+    allRows.forEach(function(r) {
+      var m = normMonth(r["BillingMonth"]);
+      if (m >= targetMonth) return; // only rows before target month
+      var uid = String(r["UnitID"]);
+      if (!prevMap[uid] || m > normMonth(prevMap[uid]["BillingMonth"])) {
+        prevMap[uid] = r;
+      }
+    });
+
+    // Get current month readings
+    var currentRows = allRows.filter(function(r) {
+      return normMonth(r["BillingMonth"]) === targetMonth;
+    });
+
+    // Attach previousReading to each current row (for UI auto-fill)
+    currentRows = currentRows.map(function(r) {
+      var uid = String(r["UnitID"]);
+      var prev = prevMap[uid] || null;
+      if (prev) r["previousReading"] = prev;
+      return r;
+    });
+
+    // Also return stub rows (with just previousReading) for units that have a
+    // prior reading but no current-month reading yet — so the UI can auto-fill Prev field.
+    var currentUnitIds = currentRows.map(function(r) { return String(r["UnitID"]); });
+    Object.keys(prevMap).forEach(function(uid) {
+      if (currentUnitIds.indexOf(uid) === -1) {
+        currentRows.push({ UnitID: uid, previousReading: prevMap[uid] });
+      }
+    });
+
+    return currentRows;
+  }
+
+  var rows = allRows;
   if (params.unitId) {
-    rows = rows.filter(function(r) { return r["UnitID"] === params.unitId; });
+    rows = rows.filter(function(r) { return String(r["UnitID"]) === String(params.unitId); });
   }
   if (params.billingMonth) {
     rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
@@ -575,7 +625,138 @@ function uploadProof(e) {
 }
 
 function saveReading(body) {
-  return { message: "stub: saveReading", unitId: body.unitId };
+  var unitId       = String(body.unitId       || "").trim();
+  var billingMonth = String(body.billingMonth || "").trim();
+  var mode         = String(body.mode         || "byReading").trim();
+  var overwrite    = body.overwrite === true || body.overwrite === "true";
+
+  if (!unitId)       throw new Error("unitId is required");
+  if (!billingMonth) throw new Error("billingMonth is required");
+
+  var cfg       = getConfig();
+  var elecRate  = parseFloat(cfg["ElecRate"])  || 0;
+  var waterRate = parseFloat(cfg["WaterRate"]) || 0;
+
+  // Allow caller to supply rate override; fall back to config
+  if (body.elecRate  !== undefined && body.elecRate  !== "") elecRate  = parseFloat(body.elecRate)  || elecRate;
+  if (body.waterRate !== undefined && body.waterRate !== "") waterRate = parseFloat(body.waterRate) || waterRate;
+
+  // Look up the unit
+  var units = sheetToJSON(getSheet("Units"));
+  var unit  = units.filter(function(u) { return String(u["UnitID"]) === unitId; })[0];
+  if (!unit) throw new Error("Unit not found: " + unitId);
+
+  var billingType = String(unit["BillingType"] || "Separate");
+  var combinedWith = String(unit["CombinedWith"] || "").trim();
+
+  // Compute charges
+  var elecConsumption, elecCharge, waterConsumption, waterCharge;
+  if (mode === "byReading") {
+    var elecPrev    = parseFloat(body.elecPrev)    || 0;
+    var elecCurrent = parseFloat(body.elecCurrent) || 0;
+    var waterPrev   = parseFloat(body.waterPrev)   || 0;
+    var waterCurrent = parseFloat(body.waterCurrent) || 0;
+    elecConsumption  = Math.max(0, elecCurrent  - elecPrev);
+    waterConsumption = Math.max(0, waterCurrent - waterPrev);
+    elecCharge  = elecConsumption  * elecRate;
+    waterCharge = waterConsumption * waterRate;
+  } else {
+    elecCharge       = parseFloat(body.elecCharge)  || 0;
+    waterCharge      = parseFloat(body.waterCharge) || 0;
+    elecConsumption  = 0;
+    waterConsumption = 0;
+    elecPrev    = 0; elecCurrent = 0;
+    waterPrev   = 0; waterCurrent = 0;
+  }
+
+  var readingSheet = getSheet("UtilityReadings");
+  var notes        = String(body.notes || "").trim();
+  var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  function deleteReadingById(readingId) {
+    var data = readingSheet.getDataRange().getValues();
+    var headers = data[0].map(function(h) { return String(h).trim(); });
+    var ridCol = headers.indexOf("ReadingID");
+    if (ridCol < 0) return;
+    for (var i = data.length - 1; i >= 1; i--) {
+      if (String(data[i][ridCol]) === readingId) {
+        readingSheet.deleteRow(i + 1);
+        return;
+      }
+    }
+  }
+
+  function writeReading(uid, readingId, eConsumption, eCharge, wConsumption, wCharge, ePrev, eCurrent, wPrev, wCurrent) {
+    var existingData = readingSheet.getDataRange().getValues();
+    var existingHeaders = existingData[0].map(function(h) { return String(h).trim(); });
+    var ridCol = existingHeaders.indexOf("ReadingID");
+    var exists = false;
+    if (ridCol >= 0) {
+      for (var i = 1; i < existingData.length; i++) {
+        if (String(existingData[i][ridCol]) === readingId) { exists = true; break; }
+      }
+    }
+    if (exists) {
+      if (!overwrite) {
+        // Signal duplicate to caller
+        return false;
+      }
+      deleteReadingById(readingId);
+    }
+    appendSheetRow(readingSheet, {
+      ReadingID:        readingId,
+      UnitID:           uid,
+      BillingMonth:     billingMonth,
+      Date:             today,
+      ElecPrev:         ePrev,
+      ElecCurrent:      eCurrent,
+      ElecConsumption:  eConsumption,
+      ElecRate:         elecRate,
+      ElecCharge:       eCharge,
+      WaterPrev:        wPrev,
+      WaterCurrent:     wCurrent,
+      WaterConsumption: wConsumption,
+      WaterRate:        waterRate,
+      WaterCharge:      wCharge,
+      Notes:            notes
+    });
+    return true;
+  }
+
+  if (billingType === "Combined" && combinedWith) {
+    // Split 50/50
+    var halfElec  = elecCharge  / 2;
+    var halfWater = waterCharge / 2;
+    var halfElecCons  = elecConsumption  / 2;
+    var halfWaterCons = waterConsumption / 2;
+
+    var rid1 = "R-" + unitId      + "-" + billingMonth;
+    var rid2 = "R-" + combinedWith + "-" + billingMonth;
+
+    var ok1 = writeReading(unitId,       rid1, halfElecCons, halfElec, halfWaterCons, halfWater,
+                           mode === "byReading" ? elecPrev : 0, mode === "byReading" ? elecCurrent : 0,
+                           mode === "byReading" ? waterPrev : 0, mode === "byReading" ? waterCurrent : 0);
+    if (ok1 === false) {
+      throw new Error("DUPLICATE:Reading already exists for " + unitId + " in " + billingMonth);
+    }
+
+    var ok2 = writeReading(combinedWith, rid2, halfElecCons, halfElec, halfWaterCons, halfWater,
+                           mode === "byReading" ? elecPrev : 0, mode === "byReading" ? elecCurrent : 0,
+                           mode === "byReading" ? waterPrev : 0, mode === "byReading" ? waterCurrent : 0);
+    if (ok2 === false) {
+      throw new Error("DUPLICATE:Reading already exists for " + combinedWith + " in " + billingMonth);
+    }
+  } else {
+    var rid = "R-" + unitId + "-" + billingMonth;
+    var ok  = writeReading(unitId, rid, elecConsumption, elecCharge, waterConsumption, waterCharge,
+                           mode === "byReading" ? elecPrev : 0, mode === "byReading" ? elecCurrent : 0,
+                           mode === "byReading" ? waterPrev : 0, mode === "byReading" ? waterCurrent : 0);
+    if (ok === false) {
+      throw new Error("DUPLICATE:Reading already exists for this unit and month");
+    }
+  }
+
+  return { elecCharge: elecCharge, waterCharge: waterCharge };
 }
 
 function addTenant(body) {
@@ -662,7 +843,29 @@ function moveTenant(body) {
 }
 
 function addExpense(body) {
-  return { message: "stub: addExpense", category: body.category };
+  var date     = String(body.date     || "").trim();
+  var category = String(body.category || "").trim();
+  var amount   = parseFloat(body.amount) || 0;
+  var payee    = String(body.payee    || "").trim();
+  var notes    = String(body.notes    || "").trim();
+
+  if (!date)     throw new Error("date is required");
+  if (!category) throw new Error("category is required");
+  if (amount <= 0) throw new Error("amount must be greater than 0");
+  if (!payee)    throw new Error("payee is required");
+
+  var expenseId = "EXP-" + Date.now();
+
+  appendSheetRow(getSheet("Expenses"), {
+    ExpenseID: expenseId,
+    Date:      date,
+    Category:  category,
+    Amount:    amount,
+    Payee:     payee,
+    Notes:     notes
+  });
+
+  return { success: true, data: { expenseId: expenseId } };
 }
 
 function updateConfig(body) {

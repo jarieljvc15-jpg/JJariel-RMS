@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Utilities — JJ Apartment RMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .month-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .month-row label {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .building-section {
+      margin-bottom: 24px;
+    }
+    .building-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0 8px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0;
+      user-select: none;
+    }
+    .building-header-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+    .building-chevron {
+      width: 18px; height: 18px;
+      stroke: var(--text-muted);
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform 0.2s;
+    }
+    .building-section.collapsed .building-chevron {
+      transform: rotate(-90deg);
+    }
+    .building-body {
+      display: block;
+    }
+    .building-section.collapsed .building-body {
+      display: none;
+    }
+    .unit-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .unit-row:last-child { border-bottom: none; }
+    .unit-id-badge {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--navy-50);
+      color: var(--navy-600);
+      padding: 3px 7px;
+      border-radius: 5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .unit-info { flex: 1; min-width: 0; }
+    .unit-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+    .unit-building {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+    .unit-shared-note {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .unit-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .badges-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .badge-billing-metered {
+      display: inline-flex; align-items: center;
+      font-size: 10px; font-weight: 600;
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      border-radius: var(--radius-pill);
+      padding: 2px 8px;
+    }
+    .badge-billing-shared {
+      display: inline-flex; align-items: center;
+      font-size: 10px; font-weight: 600;
+      background: var(--warning-bg);
+      color: #92400e;
+      border-radius: var(--radius-pill);
+      padding: 2px 8px;
+    }
+    .badge-recorded {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 600;
+      background: var(--success-bg);
+      color: #065f46;
+      border-radius: var(--radius-pill);
+      padding: 2px 8px;
+    }
+    .badge-no-reading {
+      display: inline-flex; align-items: center;
+      font-size: 10px; font-weight: 600;
+      background: var(--warning-bg);
+      color: #92400e;
+      border-radius: var(--radius-pill);
+      padding: 2px 8px;
+    }
+    .reading-summary {
+      font-size: 11px;
+      color: var(--success);
+      font-weight: 500;
+      text-align: right;
+      max-width: 160px;
+    }
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex;
+      background: var(--navy-50);
+      border-radius: var(--radius-sm);
+      padding: 3px;
+      gap: 3px;
+      margin-bottom: 20px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 8px 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-muted);
+      border-radius: 6px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active {
+      background: var(--white);
+      color: var(--text-primary);
+      box-shadow: var(--shadow-sm);
+    }
+    /* Section header inside panel */
+    .reading-section-header {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin: 16px 0 10px;
+    }
+    .computed-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 6px;
+    }
+    .computed-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .computed-val-consumption {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--accent);
+    }
+    .computed-val-charge {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--success);
+    }
+    .info-banner {
+      background: var(--warning-bg);
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #78350f;
+      margin: 12px 0;
+      line-height: 1.5;
+    }
+    .split-preview {
+      font-size: 12px;
+      font-weight: 600;
+      color: #92400e;
+      margin-top: 6px;
+    }
+    .overwrite-confirm {
+      background: var(--warning-bg);
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .overwrite-confirm p {
+      font-size: 13px;
+      color: #78350f;
+      margin-bottom: 10px;
+      font-weight: 500;
+    }
+    .overwrite-confirm-btns {
+      display: flex;
+      gap: 8px;
+    }
+    /* Panel */
+    .panel-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: none; align-items: flex-end;
+    }
+    .panel-overlay.open { display: flex; }
+    .panel {
+      background: var(--white);
+      width: 100%;
+      max-height: 92vh;
+      border-radius: 16px 16px 0 0;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700; font-size: 16px;
+      color: var(--text-primary);
+    }
+    .panel-close {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px; border: none; background: none;
+      cursor: pointer; color: var(--text-secondary);
+    }
+    .panel-close:hover { background: rgba(0,0,0,0.06); }
+    .panel-close svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .panel-body { overflow-y: auto; padding: 16px; flex: 1; }
+    .panel-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .form-group { margin-bottom: 14px; }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<header class="topbar">
+  <span class="topbar-title">Utilities</span>
+</header>
+
+<!-- Page content -->
+<main class="page-content">
+
+  <!-- Month selector -->
+  <div class="month-row">
+    <label for="monthPicker">Month</label>
+    <input class="form-input" id="monthPicker" type="month" style="flex:1;max-width:200px;">
+  </div>
+
+  <!-- Loading state -->
+  <div id="loadingState" style="display:flex;align-items:center;gap:8px;padding:40px 0;justify-content:center;">
+    <div class="spinner"></div>
+    <span class="text-muted">Loading units…</span>
+  </div>
+
+  <!-- Error state -->
+  <div id="errorState" class="hidden">
+    <div class="alert alert--danger">
+      <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="errorMsg">Failed to load data.</span>
+    </div>
+  </div>
+
+  <!-- Units content -->
+  <div id="unitsContent" class="hidden"></div>
+
+</main>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <a href="./index.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="./tenants.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    <span>Tenants</span>
+  </a>
+  <a href="./billing.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+    <span>Billing</span>
+  </a>
+  <a href="./ledger.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <span>Ledger</span>
+  </a>
+  <button class="bottom-nav-item active" id="moreBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
+<!-- More drawer -->
+<div class="drawer-overlay" id="moreDrawer">
+  <div class="drawer" role="dialog" aria-label="More options">
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">More</div>
+    <a href="./units.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="drawer-item-label">Units</span>
+    </a>
+    <a href="./utilities.html" class="drawer-item active">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span class="drawer-item-label">Utilities</span>
+    </a>
+    <a href="./expenses.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <span class="drawer-item-label">Expenses</span>
+    </a>
+  </div>
+</div>
+
+<!-- Log Reading slide-up -->
+<div class="panel-overlay" id="logReadingPanel">
+  <div class="panel" role="dialog" aria-label="Log Reading">
+    <div class="panel-header">
+      <div class="panel-title" id="logPanelTitle">Log Reading</div>
+      <button class="panel-close" id="logPanelClose">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="panel-body">
+
+      <!-- Mode toggle -->
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="modeByReading">By Reading</button>
+        <button class="mode-btn" id="modeDirectAmount">Direct Amount</button>
+      </div>
+
+      <!-- Overwrite confirmation (hidden by default) -->
+      <div class="overwrite-confirm hidden" id="overwriteConfirm">
+        <p id="overwriteMsg">Reading already logged for this month. Overwrite?</p>
+        <div class="overwrite-confirm-btns">
+          <button class="btn btn--outline btn--sm" id="overwriteCancel">Cancel</button>
+          <button class="btn btn--danger btn--sm" id="overwriteConfirmBtn">Overwrite</button>
+        </div>
+      </div>
+
+      <!-- Combined unit info banner -->
+      <div class="info-banner hidden" id="combinedBanner">
+        <div id="combinedBannerText"></div>
+        <div class="split-preview hidden" id="splitPreview"></div>
+      </div>
+
+      <!-- BY READING mode -->
+      <div id="byReadingForm">
+        <div class="reading-section-header">Electric</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="elecPrev">Prev Reading (kWh)</label>
+            <input class="form-input" id="elecPrev" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="elecCurrent">Current Reading (kWh)</label>
+            <input class="form-input" id="elecCurrent" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="elecRate">Rate (₱/kWh)</label>
+            <input class="form-input" id="elecRate" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div class="computed-row" style="border-top:none;padding-top:0;">
+              <span class="computed-label">Consumption</span>
+              <span class="computed-val-consumption" id="elecConsumption">0 kWh</span>
+            </div>
+            <div class="computed-row" style="border-top:none;padding-top:0;">
+              <span class="computed-label">Charge</span>
+              <span class="computed-val-charge" id="elecChargeDisplay">₱0.00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="reading-section-header">Water</div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="waterPrev">Prev Reading (m³)</label>
+            <input class="form-input" id="waterPrev" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="waterCurrent">Current Reading (m³)</label>
+            <input class="form-input" id="waterCurrent" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="waterRate">Rate (₱/m³)</label>
+            <input class="form-input" id="waterRate" type="number" min="0" step="0.01" placeholder="0">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div class="computed-row" style="border-top:none;padding-top:0;">
+              <span class="computed-label">Consumption</span>
+              <span class="computed-val-consumption" id="waterConsumption">0 m³</span>
+            </div>
+            <div class="computed-row" style="border-top:none;padding-top:0;">
+              <span class="computed-label">Charge</span>
+              <span class="computed-val-charge" id="waterChargeDisplay">₱0.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DIRECT AMOUNT mode -->
+      <div id="directAmountForm" class="hidden">
+        <div class="form-group">
+          <label class="form-label" for="directElec">Electric Charge (₱)</label>
+          <input class="form-input" id="directElec" type="number" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="directWater">Water Charge (₱)</label>
+          <input class="form-input" id="directWater" type="number" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="directNote">Reason for direct entry</label>
+          <input class="form-input" id="directNote" type="text" placeholder="e.g. estimated, flat rate">
+        </div>
+      </div>
+
+    </div>
+    <div class="panel-footer">
+      <button class="btn btn--accent btn--full" id="logSubmitBtn">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Save Reading
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../assets/config.js"></script>
+<script src="../assets/quick-payment.js"></script>
+<script>
+(function () {
+  if (!localStorage.getItem('adminToken')) {
+    window.location.href = '../index.html';
+    return;
+  }
+
+  const drawer = document.getElementById('moreDrawer');
+  document.getElementById('moreBtn').addEventListener('click', () => drawer.classList.add('open'));
+  drawer.addEventListener('click', (e) => { if (e.target === drawer) drawer.classList.remove('open'); });
+
+  // Default to current month
+  const now = new Date();
+  const monthPicker = document.getElementById('monthPicker');
+  monthPicker.value = now.toISOString().substring(0, 7);
+  monthPicker.addEventListener('change', () => loadData());
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function peso(n) {
+    return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function showToast(msg, type) {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    const ok = type === 'success';
+    t.className = 'alert alert--' + (ok ? 'success' : 'danger') + ' toast';
+    t.innerHTML = ok
+      ? '<svg viewBox="0 0 24 24" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg><span>' + msg + '</span>'
+      : '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>' + msg + '</span>';
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+  }
+  async function postJSON(payload) {
+    const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
+  // State
+  let allUnits = [];
+  let allReadings = [];
+  let elecRateDefault = 0;
+  let waterRateDefault = 0;
+  // Per-unit previous readings map: unitId -> { elecPrev, waterPrev }
+  let prevReadingsMap = {};
+
+  // Current panel state
+  let activeUnit = null;
+  let currentMode = 'byReading';
+  let pendingOverwrite = false;
+
+  async function loadData() {
+    const loading = document.getElementById('loadingState');
+    const error = document.getElementById('errorState');
+    const content = document.getElementById('unitsContent');
+    const month = monthPicker.value;
+
+    loading.classList.remove('hidden'); loading.style.display = 'flex';
+    error.classList.add('hidden');
+    content.classList.add('hidden');
+
+    const timeoutId = setTimeout(() => {
+      loading.style.display = 'none';
+      error.classList.remove('hidden');
+      document.getElementById('errorMsg').textContent = 'Request timed out after 10 seconds.';
+    }, 10000);
+
+    try {
+      const [unitsRes, readingsRes] = await Promise.all([
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getUnits').then(r => r.json()),
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month)).then(r => r.json())
+      ]);
+      clearTimeout(timeoutId);
+
+      if (!unitsRes.success) throw new Error(unitsRes.error || 'Failed to load units');
+      if (!readingsRes.success) throw new Error(readingsRes.error || 'Failed to load readings');
+
+      allUnits = unitsRes.data || [];
+      allReadings = readingsRes.data || [];
+
+      // Build prev readings map from returned data
+      prevReadingsMap = {};
+      allReadings.forEach(r => {
+        if (r.UnitID && r.previousReading) {
+          prevReadingsMap[r.UnitID] = r.previousReading;
+        }
+      });
+
+      loading.style.display = 'none';
+      content.classList.remove('hidden');
+      renderUnits();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      loading.style.display = 'none';
+      error.classList.remove('hidden');
+      document.getElementById('errorMsg').textContent = err.message || 'Failed to load data.';
+    }
+  }
+
+  function getReadingForUnit(unitId) {
+    return allReadings.find(r => r.UnitID === unitId && !r.previousReading) ||
+           allReadings.find(r => r.UnitID === unitId);
+  }
+
+  function getPartnerUnitName(partnerId) {
+    const u = allUnits.find(u => u.UnitID === partnerId);
+    return u ? u.UnitName : partnerId;
+  }
+
+  function renderUnits() {
+    const content = document.getElementById('unitsContent');
+
+    // Group by building
+    const buildingMap = {};
+    allUnits.forEach(u => {
+      const bld = u.BuildingName || 'Other';
+      if (!buildingMap[bld]) buildingMap[bld] = [];
+      buildingMap[bld].push(u);
+    });
+
+    content.innerHTML = Object.entries(buildingMap).map(([bld, units]) => {
+      const rowsHtml = units.map(u => {
+        const reading = allReadings.find(r => r.UnitID === u.UnitID);
+        const billingTypeBadge = u.BillingType === 'Combined'
+          ? '<span class="badge-billing-shared">Shared</span>'
+          : '<span class="badge-billing-metered">Metered</span>';
+        const sharedNote = (u.BillingType === 'Combined' && u.CombinedWith)
+          ? '<div class="unit-shared-note">Shared with ' + escHtml(getPartnerUnitName(u.CombinedWith)) + '</div>'
+          : '';
+
+        let statusHtml = '';
+        let actionHtml = '';
+        if (reading && !reading.previousReading) {
+          const elecStr = (parseFloat(reading.ElecConsumption) || 0).toFixed(1) + ' kWh (' + peso(reading.ElecCharge) + ')';
+          const waterStr = (parseFloat(reading.WaterConsumption) || 0).toFixed(1) + ' m³ (' + peso(reading.WaterCharge) + ')';
+          statusHtml = '<span class="badge-recorded"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Recorded</span>';
+          actionHtml = '<div class="reading-summary">Elec: ' + escHtml(elecStr) + ' · Water: ' + escHtml(waterStr) + '</div>';
+        } else {
+          statusHtml = '<span class="badge-no-reading">No reading</span>';
+          actionHtml = '<button class="btn btn--outline btn--sm" onclick="openLogPanel(\'' + escHtml(u.UnitID) + '\')">Log Reading</button>';
+        }
+
+        return '<div class="unit-row">'
+          + '<div class="unit-id-badge">' + escHtml(u.UnitID) + '</div>'
+          + '<div class="unit-info">'
+          + '<div class="unit-name">' + escHtml(u.UnitName) + '</div>'
+          + '<div class="unit-building">' + escHtml(u.BuildingName || '') + '</div>'
+          + sharedNote
+          + '</div>'
+          + '<div class="unit-actions">'
+          + '<div class="badges-row">' + billingTypeBadge + statusHtml + '</div>'
+          + actionHtml
+          + '</div>'
+          + '</div>';
+      }).join('');
+
+      return '<div class="building-section" id="bld-' + escHtml(bld.replace(/\s/g, '-')) + '">'
+        + '<div class="building-header" onclick="toggleBuilding(this.parentElement)">'
+        + '<span class="building-header-title">' + escHtml(bld) + '</span>'
+        + '<svg class="building-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>'
+        + '</div>'
+        + '<div class="building-body">' + rowsHtml + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  window.toggleBuilding = function(section) {
+    section.classList.toggle('collapsed');
+  };
+
+  window.openLogPanel = function(unitId) {
+    activeUnit = allUnits.find(u => u.UnitID === unitId);
+    if (!activeUnit) return;
+
+    document.getElementById('logPanelTitle').textContent = 'Log Reading — ' + activeUnit.UnitName;
+    pendingOverwrite = false;
+    document.getElementById('overwriteConfirm').classList.add('hidden');
+
+    // Reset mode to By Reading
+    setMode('byReading');
+
+    // Auto-fill rates from previous defaults
+    document.getElementById('elecRate').value = elecRateDefault || '';
+    document.getElementById('waterRate').value = waterRateDefault || '';
+
+    // Auto-fill prev readings
+    const prev = prevReadingsMap[unitId];
+    if (prev) {
+      document.getElementById('elecPrev').value = prev.ElecCurrent || '';
+      document.getElementById('waterPrev').value = prev.WaterCurrent || '';
+    } else {
+      document.getElementById('elecPrev').value = '';
+      document.getElementById('waterPrev').value = '';
+    }
+    document.getElementById('elecCurrent').value = '';
+    document.getElementById('waterCurrent').value = '';
+    document.getElementById('directElec').value = '';
+    document.getElementById('directWater').value = '';
+    document.getElementById('directNote').value = '';
+
+    updateComputedValues();
+    updateCombinedBanner();
+
+    document.getElementById('logReadingPanel').classList.add('open');
+  };
+
+  function updateCombinedBanner() {
+    if (!activeUnit) return;
+    const banner = document.getElementById('combinedBanner');
+    const bannerText = document.getElementById('combinedBannerText');
+    const splitPreview = document.getElementById('splitPreview');
+
+    if (activeUnit.BillingType === 'Combined' && activeUnit.CombinedWith) {
+      const partnerName = getPartnerUnitName(activeUnit.CombinedWith);
+      bannerText.textContent = 'This unit shares a meter with ' + partnerName + '. Readings will be split 50/50 automatically.';
+      banner.classList.remove('hidden');
+      updateSplitPreview();
+    } else {
+      banner.classList.add('hidden');
+      splitPreview.classList.add('hidden');
+    }
+  }
+
+  function updateSplitPreview() {
+    if (!activeUnit || activeUnit.BillingType !== 'Combined') return;
+    const splitPreview = document.getElementById('splitPreview');
+    let elecCharge = 0, waterCharge = 0;
+    if (currentMode === 'byReading') {
+      elecCharge = computedElecCharge();
+      waterCharge = computedWaterCharge();
+    } else {
+      elecCharge = parseFloat(document.getElementById('directElec').value) || 0;
+      waterCharge = parseFloat(document.getElementById('directWater').value) || 0;
+    }
+    if (elecCharge > 0 || waterCharge > 0) {
+      splitPreview.classList.remove('hidden');
+      splitPreview.textContent = 'Each unit will be charged: Elec ' + peso(elecCharge / 2) + ' · Water ' + peso(waterCharge / 2);
+    } else {
+      splitPreview.classList.add('hidden');
+    }
+  }
+
+  function computedElecCharge() {
+    const prev = parseFloat(document.getElementById('elecPrev').value) || 0;
+    const curr = parseFloat(document.getElementById('elecCurrent').value) || 0;
+    const rate = parseFloat(document.getElementById('elecRate').value) || 0;
+    return Math.max(0, curr - prev) * rate;
+  }
+  function computedWaterCharge() {
+    const prev = parseFloat(document.getElementById('waterPrev').value) || 0;
+    const curr = parseFloat(document.getElementById('waterCurrent').value) || 0;
+    const rate = parseFloat(document.getElementById('waterRate').value) || 0;
+    return Math.max(0, curr - prev) * rate;
+  }
+
+  function updateComputedValues() {
+    const elecPrev = parseFloat(document.getElementById('elecPrev').value) || 0;
+    const elecCurr = parseFloat(document.getElementById('elecCurrent').value) || 0;
+    const elecRate = parseFloat(document.getElementById('elecRate').value) || 0;
+    const elecCons = Math.max(0, elecCurr - elecPrev);
+    const elecCharge = elecCons * elecRate;
+
+    document.getElementById('elecConsumption').textContent = elecCons.toFixed(2) + ' kWh';
+    document.getElementById('elecChargeDisplay').textContent = peso(elecCharge);
+
+    const waterPrev = parseFloat(document.getElementById('waterPrev').value) || 0;
+    const waterCurr = parseFloat(document.getElementById('waterCurrent').value) || 0;
+    const waterRate = parseFloat(document.getElementById('waterRate').value) || 0;
+    const waterCons = Math.max(0, waterCurr - waterPrev);
+    const waterCharge = waterCons * waterRate;
+
+    document.getElementById('waterConsumption').textContent = waterCons.toFixed(2) + ' m³';
+    document.getElementById('waterChargeDisplay').textContent = peso(waterCharge);
+
+    updateSplitPreview();
+  }
+
+  // Live compute listeners
+  ['elecPrev','elecCurrent','elecRate','waterPrev','waterCurrent','waterRate'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateComputedValues);
+  });
+  ['directElec','directWater'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updateSplitPreview);
+  });
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('modeByReading').classList.toggle('active', mode === 'byReading');
+    document.getElementById('modeDirectAmount').classList.toggle('active', mode === 'directAmount');
+    document.getElementById('byReadingForm').classList.toggle('hidden', mode !== 'byReading');
+    document.getElementById('directAmountForm').classList.toggle('hidden', mode !== 'directAmount');
+    updateCombinedBanner();
+  }
+
+  document.getElementById('modeByReading').addEventListener('click', () => setMode('byReading'));
+  document.getElementById('modeDirectAmount').addEventListener('click', () => setMode('directAmount'));
+
+  // Panel close
+  document.getElementById('logPanelClose').addEventListener('click', () => {
+    document.getElementById('logReadingPanel').classList.remove('open');
+  });
+  document.getElementById('logReadingPanel').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('logReadingPanel'))
+      document.getElementById('logReadingPanel').classList.remove('open');
+  });
+
+  // Overwrite buttons
+  document.getElementById('overwriteCancel').addEventListener('click', () => {
+    document.getElementById('overwriteConfirm').classList.add('hidden');
+    pendingOverwrite = false;
+  });
+  document.getElementById('overwriteConfirmBtn').addEventListener('click', () => {
+    pendingOverwrite = true;
+    document.getElementById('overwriteConfirm').classList.add('hidden');
+    submitReading(true);
+  });
+
+  // Submit
+  document.getElementById('logSubmitBtn').addEventListener('click', () => submitReading(false));
+
+  async function submitReading(overwrite) {
+    if (!activeUnit) return;
+    const btn = document.getElementById('logSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Saving…';
+
+    const month = monthPicker.value;
+    let payload = {
+      action: 'saveReading',
+      adminToken: localStorage.getItem('adminToken'),
+      unitId: activeUnit.UnitID,
+      billingMonth: month,
+      mode: currentMode,
+      overwrite: overwrite
+    };
+
+    if (currentMode === 'byReading') {
+      payload.elecPrev    = parseFloat(document.getElementById('elecPrev').value)    || 0;
+      payload.elecCurrent = parseFloat(document.getElementById('elecCurrent').value) || 0;
+      payload.waterPrev   = parseFloat(document.getElementById('waterPrev').value)   || 0;
+      payload.waterCurrent = parseFloat(document.getElementById('waterCurrent').value) || 0;
+      payload.elecRate    = parseFloat(document.getElementById('elecRate').value)    || 0;
+      payload.waterRate   = parseFloat(document.getElementById('waterRate').value)   || 0;
+    } else {
+      payload.elecCharge  = parseFloat(document.getElementById('directElec').value)  || 0;
+      payload.waterCharge = parseFloat(document.getElementById('directWater').value) || 0;
+      payload.notes       = document.getElementById('directNote').value.trim();
+    }
+
+    try {
+      const json = await postJSON(payload);
+
+      if (!json.success) {
+        if (json.error && json.error.indexOf('DUPLICATE:') === 0) {
+          // Show overwrite confirmation
+          document.getElementById('overwriteMsg').textContent =
+            'Reading already logged for ' + month + '. Overwrite?';
+          document.getElementById('overwriteConfirm').classList.remove('hidden');
+          btn.disabled = false;
+          btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Reading';
+          return;
+        }
+        throw new Error(json.error || 'Failed to save reading');
+      }
+
+      const d = json.data || {};
+      const elecCharge = parseFloat(d.elecCharge) || 0;
+      const waterCharge = parseFloat(d.waterCharge) || 0;
+
+      showToast('Reading saved — Elec: ' + peso(elecCharge) + ' · Water: ' + peso(waterCharge), 'success');
+      document.getElementById('logReadingPanel').classList.remove('open');
+
+      // Refresh data
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to save reading', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Reading';
+    }
+  }
+
+  loadData();
+})();
+</script>
+</body>
+</html>
