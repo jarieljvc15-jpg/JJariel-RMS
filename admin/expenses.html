@@ -506,11 +506,20 @@
     this.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Saving…';
 
     try {
-      const json = await postJSON({
-        action:    'addExpense',
-        adminToken: localStorage.getItem('adminToken'),
-        date, category, amount, payee, notes
+      const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action:     'addExpense',
+          adminToken: localStorage.getItem('adminToken'),
+          date:       date,
+          category:   category,
+          amount:     amount,
+          payee:      payee,
+          notes:      notes
+        })
       });
+      const json = await res.json();
 
       if (!json.success) throw new Error(json.error || 'Failed to save expense');
 
