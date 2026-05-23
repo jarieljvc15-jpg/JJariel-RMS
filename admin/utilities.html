@@ -253,6 +253,10 @@
       display: flex;
       gap: 8px;
     }
+    /* Tenant name line in unit rows */
+    .unit-tenant { font-size: 12px; margin-top: 2px; }
+    .unit-tenant--occupied { color: var(--text-secondary); font-weight: 500; }
+    .unit-tenant--vacant { color: var(--text-muted); font-style: italic; }
     /* Panel */
     .panel-overlay {
       position: fixed; inset: 0;
@@ -549,12 +553,11 @@
   // State
   let allUnits = [];
   let allReadings = [];
+  let tenantByUnit = {};
   let elecRateDefault = 0;
   let waterRateDefault = 0;
   // Per-unit previous readings map: unitId -> { elecPrev, waterPrev }
   let prevReadingsMap = {};
-  // unitId -> tenant name (undefined = vacant)
-  let tenantByUnit = {};
 
   // Current panel state
   let activeUnit = null;
@@ -600,9 +603,7 @@
       // Build unitId → tenant name map
       tenantByUnit = {};
       if (tenantsRes.success && tenantsRes.data) {
-        tenantsRes.data.forEach(t => {
-          if (t.UnitID) tenantByUnit[t.UnitID] = t.Name;
-        });
+        tenantsRes.data.forEach(t => { if (t.UnitID) tenantByUnit[t.UnitID] = t.Name; });
       }
 
       // Build prev readings map from returned data
@@ -669,9 +670,8 @@
 
         const tenantName = tenantByUnit[u.UnitID];
         const tenantLine = tenantName
-          ? '<div class="unit-tenant-name">' + escHtml(tenantName) + '</div>'
-          : '<div class="unit-tenant-name unit-tenant-vacant">Vacant</div>';
-
+          ? '<div class="unit-tenant unit-tenant--occupied">' + escHtml(tenantName) + '</div>'
+          : '<div class="unit-tenant unit-tenant--vacant">Vacant</div>';
         return '<div class="unit-row">'
           + '<div class="unit-id-badge">' + escHtml(u.UnitID) + '</div>'
           + '<div class="unit-info">'
