@@ -120,6 +120,36 @@
       line-height: 1.6;
     }
     .confirm-btns { display: flex; gap: 10px; }
+    /* Utilities section in detail panel */
+    .utils-section {
+      padding: 14px 0 10px;
+      border-top: 1px solid var(--border);
+    }
+    .utils-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .utils-breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+    .utils-breakdown-row span:first-child { color: var(--text-secondary); font-weight: 500; }
+    .utils-breakdown-row span:last-child { color: var(--text-primary); font-weight: 600; }
+    .utils-amber {
+      background: var(--warning-bg);
+      color: #92400e;
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
     .detail-section-label {
       font-family: 'Inter', sans-serif;
       font-size: 11px;
@@ -212,7 +242,7 @@
 <!-- Bottom nav -->
 <nav class="bottom-nav">
   <a href="./index.html" class="bottom-nav-item">
-    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
     <span>Home</span>
   </a>
   <a href="./tenants.html" class="bottom-nav-item active">
@@ -327,6 +357,7 @@
     </div>
     <div class="panel-body">
       <div id="detailBody"></div>
+      <div id="detailUtilitiesSection"></div>
       <div class="detail-actions" id="detailActions">
         <button class="btn btn--accent" id="recordPaymentBtn">
           <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
@@ -705,13 +736,16 @@
     document.getElementById('saveTenantBtn').classList.add('hidden');
     document.getElementById('cancelEditBtn').classList.add('hidden');
     renderDetailView(tenant);
+    // Show loading state for utilities section
+    const utilSection = document.getElementById('detailUtilitiesSection');
+    if (utilSection) utilSection.innerHTML = '';
     openPanel('tenantDetailPanel');
 
     const currentMonth = new Date().toISOString().substring(0, 7);
     const unitId = tenant.UnitID || '';
 
     try {
-      const [balRes, notesRes, readingsRes] = await Promise.all([
+      const [balRes, notesRes, readRes] = await Promise.all([
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBalance&tenantId=' + encodeURIComponent(tenant.TenantID)),
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getNotes&tenantId=' + encodeURIComponent(tenant.TenantID)),
         unitId
@@ -719,6 +753,7 @@
           : Promise.resolve(null)
       ]);
 
+      // Update balance
       const balJson = await balRes.json();
       currentBalanceHtml = balJson.success
         ? balanceDisplay(balJson.data.total || 0)
@@ -728,6 +763,7 @@
         if (balRow) balRow.querySelector('.detail-value').innerHTML = currentBalanceHtml;
       }
 
+      // Update notes
       const notesJson = await notesRes.json();
       const notesEl = document.getElementById('detailNotesSection');
       if (notesEl) {
@@ -743,32 +779,36 @@
         }
       }
 
-      if (readingsRes) {
-        const readJson = await readingsRes.json();
-        const utilEl = document.getElementById('detailUtilities');
-        if (utilEl) {
-          let utilHtml = '<span class="text-muted" style="font-style:italic;">No reading this month</span>';
+      // Update utilities section (detailed kWh/m³ breakdown)
+      if (utilSection) {
+        if (!unitId) {
+          utilSection.innerHTML = '';
+        } else if (readRes) {
+          const readJson = await readRes.json();
           if (readJson.success && readJson.data && readJson.data.length > 0) {
             const row = readJson.data[0];
-            const elec = parseFloat(row.ElecCharge || 0);
-            const water = parseFloat(row.WaterCharge || 0);
-            const total = elec + water;
-            if (total > 0) {
-              utilHtml = peso(total);
-              if (elec && water) utilHtml += `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">(Elec ${peso(elec)} + Water ${peso(water)})</span>`;
-            }
+            const elecCons  = (parseFloat(row.ElecConsumption  || 0)).toFixed(1);
+            const waterCons = (parseFloat(row.WaterConsumption || 0)).toFixed(1);
+            const elecCharge  = parseFloat(row.ElecCharge  || 0);
+            const waterCharge = parseFloat(row.WaterCharge || 0);
+            utilSection.innerHTML =
+              '<div class="utils-section">'
+              + '<div class="utils-section-title">This Month\'s Utilities</div>'
+              + '<div class="utils-breakdown-row"><span>Electric</span><span>' + escHtml(elecCons) + ' kWh → ' + peso(elecCharge) + '</span></div>'
+              + '<div class="utils-breakdown-row"><span>Water</span><span>' + escHtml(waterCons) + ' m³ → ' + peso(waterCharge) + '</span></div>'
+              + '</div>';
+          } else {
+            utilSection.innerHTML =
+              '<div class="utils-section">'
+              + '<div class="utils-section-title">This Month\'s Utilities</div>'
+              + '<div class="utils-amber">No utility reading logged for this month yet</div>'
+              + '</div>';
           }
-          utilEl.querySelector('.detail-value').innerHTML = utilHtml;
         }
-      } else {
-        const utilEl = document.getElementById('detailUtilities');
-        if (utilEl) utilEl.querySelector('.detail-value').innerHTML = '<span class="text-muted" style="font-style:italic;">No unit assigned</span>';
       }
     } catch (_) {
       const notesEl = document.getElementById('detailNotesSection');
       if (notesEl) notesEl.innerHTML = '<div class="notes-empty">Could not load notes.</div>';
-      const utilEl = document.getElementById('detailUtilities');
-      if (utilEl) utilEl.querySelector('.detail-value').innerHTML = '<span class="text-muted">—</span>';
     }
   }
 
