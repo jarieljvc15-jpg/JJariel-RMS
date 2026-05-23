@@ -150,6 +150,9 @@
       font-size: 11px;
       color: var(--text-secondary);
     }
+    @media (max-width: 767px) {
+      .col-desktop { display: none; }
+    }
     /* Panel */
     .panel-overlay {
       position: fixed; inset: 0;
@@ -519,39 +522,39 @@
     tableWrap.innerHTML = '<table>'
       + '<thead><tr>'
       + '<th>Date</th>'
-      + '<th>TxnID</th>'
+      + '<th class="col-desktop">TxnID</th>'
       + '<th>Tenant</th>'
-      + '<th>Unit</th>'
-      + '<th>Month</th>'
+      + '<th class="col-desktop">Unit</th>'
+      + '<th class="col-desktop">Month</th>'
       + '<th>Type</th>'
-      + '<th style="text-align:right;">Rent</th>'
-      + '<th style="text-align:right;">Elec</th>'
-      + '<th style="text-align:right;">Water</th>'
+      + '<th class="col-desktop col-amount">Rent</th>'
+      + '<th class="col-desktop col-amount">Elec</th>'
+      + '<th class="col-desktop col-amount">Water</th>'
       + '<th style="text-align:right;">Total</th>'
-      + '<th>Dir</th>'
-      + '<th>Mode</th>'
-      + '<th>Ref</th>'
+      + '<th class="col-desktop">Dir</th>'
+      + '<th class="col-desktop">Mode</th>'
+      + '<th class="col-desktop">Ref</th>'
       + '</tr></thead>'
       + '<tbody>'
       + rows.map((r, idx) => {
           const dirClass = r.Direction === 'Debit' ? 'dir-debit' : 'dir-credit';
           const ref = String(r.ReferenceNo || '');
-          const txnFull = r.TxnID || '—';
+          const txnFull  = r.TxnID || '—';
           const txnShort = txnFull.length > 20 ? txnFull.substring(0, 20) + '…' : txnFull;
           return '<tr data-idx="' + idx + '">'
             + '<td style="white-space:nowrap;font-size:11px;">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</td>'
-            + '<td><span class="txn-id-badge" title="' + escHtml(txnFull) + '">' + escHtml(txnShort) + '</span></td>'
+            + '<td class="col-desktop"><span class="txn-id-badge" title="' + escHtml(txnFull) + '">' + escHtml(txnShort) + '</span></td>'
             + '<td style="font-size:12px;">' + escHtml(r.TenantName || r.TenantID || '—') + '</td>'
-            + '<td style="font-size:12px;">' + escHtml(r.UnitDisplayName || r.UnitID || '—') + '</td>'
-            + '<td style="font-size:11px;white-space:nowrap;">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</td>'
+            + '<td class="col-desktop" style="font-size:12px;white-space:nowrap;">' + escHtml(r.UnitDisplayName || r.UnitID || '—') + '</td>'
+            + '<td class="col-desktop" style="font-size:11px;white-space:nowrap;">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</td>'
             + '<td>' + typeBadge(r.TxnType) + '</td>'
-            + '<td class="col-amount">' + amountCell(r.RentAmount)  + '</td>'
-            + '<td class="col-amount">' + amountCell(r.ElecAmount)  + '</td>'
-            + '<td class="col-amount">' + amountCell(r.WaterAmount) + '</td>'
+            + '<td class="col-desktop col-amount">' + amountCell(r.RentAmount)  + '</td>'
+            + '<td class="col-desktop col-amount">' + amountCell(r.ElecAmount)  + '</td>'
+            + '<td class="col-desktop col-amount">' + amountCell(r.WaterAmount) + '</td>'
             + '<td class="col-amount">' + amountCell(r.TotalAmount) + '</td>'
-            + '<td class="' + dirClass + '">' + escHtml(r.Direction || '—') + '</td>'
-            + '<td style="font-size:11px;color:var(--text-muted);">' + escHtml(r.PaymentMode || '') + '</td>'
-            + '<td>' + (ref ? '<span class="ref-mono">' + escHtml(ref) + '</span>' : '') + '</td>'
+            + '<td class="col-desktop ' + dirClass + '">' + escHtml(r.Direction || '—') + '</td>'
+            + '<td class="col-desktop" style="font-size:11px;color:var(--text-muted);">' + escHtml(r.PaymentMode || '') + '</td>'
+            + '<td class="col-desktop">' + (ref ? '<span class="ref-mono">' + escHtml(ref) + '</span>' : '') + '</td>'
             + '</tr>';
         }).join('')
       + '</tbody></table>';

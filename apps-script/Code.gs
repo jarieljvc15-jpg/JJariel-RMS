@@ -24,6 +24,7 @@ function doGet(e) {
       case "getNotes":       return respond(getNotes(params));
       case "verifyTenant":   return respond(verifyTenant(params));
       case "getDashboard":   return respond(getDashboardData());
+      case "getConfig":      return respond(getConfig());
       default:
         return respond(null, "Unknown action: " + action);
     }
@@ -233,20 +234,15 @@ function getLedger(params) {
     rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
 
-  // Enrich rows with human-readable tenant and unit display names
   var allTenants = sheetToJSON(getSheet("Tenants"));
   var allUnits   = sheetToJSON(getSheet("Units"));
   var buildings  = sheetToJSON(getSheet("Buildings"));
 
   var tenantNameMap = {};
-  allTenants.forEach(function(t) {
-    tenantNameMap[String(t["TenantID"])] = t["Name"] || "";
-  });
+  allTenants.forEach(function(t) { tenantNameMap[String(t["TenantID"])] = t["Name"] || ""; });
 
   var bldMap = {};
-  buildings.forEach(function(b) {
-    bldMap[String(b["BuildingID"])] = b["BuildingName"] || "";
-  });
+  buildings.forEach(function(b) { bldMap[String(b["BuildingID"])] = b["BuildingName"] || ""; });
   var unitDisplayMap = {};
   allUnits.forEach(function(u) {
     var bldName = bldMap[String(u["BuildingID"])] || "";
@@ -258,7 +254,7 @@ function getLedger(params) {
   rows = rows.map(function(r) {
     var tid = String(r["TenantID"] || "");
     var uid = String(r["UnitID"] || "");
-    r["TenantName"]     = (tid && tenantNameMap[tid]) ? tenantNameMap[tid] : (tid || "—");
+    r["TenantName"]      = (tid && tenantNameMap[tid]) ? tenantNameMap[tid] : (tid || "—");
     r["UnitDisplayName"] = (uid && unitDisplayMap[uid]) ? unitDisplayMap[uid] : (uid || "—");
     return r;
   });

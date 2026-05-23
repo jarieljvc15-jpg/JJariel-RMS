@@ -182,6 +182,41 @@
       font-style: italic;
       padding: 8px 0;
     }
+    .utils-section {
+      margin: 4px 0 8px;
+    }
+    .utils-section-title {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 16px 0 8px;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+    .utils-breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .utils-breakdown-row:last-child { border-bottom: none; }
+    .utils-breakdown-label { color: var(--text-secondary); }
+    .utils-breakdown-value { font-weight: 600; color: var(--text-primary); }
+    .utils-amber {
+      background: var(--warning-bg);
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #78350f;
+      margin: 8px 0;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -345,15 +380,9 @@
   <div class="panel" role="dialog" aria-label="Tenant Details">
     <div class="panel-header">
       <span class="panel-title" id="detailPanelTitle">Tenant Details</span>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <button class="btn btn--outline btn--sm" id="editTenantBtn" style="display:none;">
-          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          Edit
-        </button>
-        <button class="panel-close" id="tenantDetailClose">
-          <svg viewBox="0 0 24 24" width="24" height="24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
+      <button class="panel-close" id="tenantDetailClose">
+        <svg viewBox="0 0 24 24" width="24" height="24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>
     <div class="panel-body">
       <div id="detailBody"></div>
@@ -367,8 +396,6 @@
           <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Move Out
         </button>
-        <button class="btn btn--accent hidden" id="saveTenantBtn" style="grid-column:1;">Save Changes</button>
-        <button class="btn btn--outline hidden" id="cancelEditBtn">Cancel</button>
       </div>
     </div>
   </div>
@@ -466,9 +493,6 @@
     }
   });
 
-  document.getElementById('editTenantBtn').addEventListener('click', enterEditMode);
-  document.getElementById('saveTenantBtn').addEventListener('click', validateAndSave);
-  document.getElementById('cancelEditBtn').addEventListener('click', exitEditMode);
 
   // ── State ─────────────────────────────────────────────────────
 
@@ -602,7 +626,7 @@
       return `<div class="detail-row"><span class="detail-label">${escHtml(label)}</span><span class="detail-value">${escHtml(val)}</span></div>`;
     }).join('')
     + `<div class="detail-row" id="detailBalance"><span class="detail-label">Balance</span><span class="detail-value">${currentBalanceHtml}</span></div>`
-    + `<div class="detail-row" id="detailUtilities"><span class="detail-label">This Month Utilities</span><span class="detail-value"><span class="text-muted">Loading…</span></span></div>`
+    + `<div id="detailUtilitiesSection"></div>`
     + `<div class="detail-section-label">Notes</div>`
     + `<div id="detailNotesSection"><span class="text-muted" style="font-size:13px;">Loading…</span></div>`;
   }
@@ -660,81 +684,21 @@
     });
   }
 
-  function enterEditMode() {
-    isEditMode = true;
-    document.getElementById('editTenantBtn').style.display = 'none';
-    renderDetailEdit(activeTenant);
-    document.getElementById('recordPaymentBtn').classList.add('hidden');
-    document.getElementById('moveOutBtn').classList.add('hidden');
-    document.getElementById('saveTenantBtn').classList.remove('hidden');
-    document.getElementById('cancelEditBtn').classList.remove('hidden');
-  }
-
   function exitEditMode() {
     isEditMode = false;
-    document.getElementById('editTenantBtn').style.display = '';
     renderDetailView(activeTenant);
     document.getElementById('recordPaymentBtn').classList.remove('hidden');
     document.getElementById('moveOutBtn').classList.remove('hidden');
-    document.getElementById('saveTenantBtn').classList.add('hidden');
-    document.getElementById('cancelEditBtn').classList.add('hidden');
   }
 
-  async function validateAndSave() {
-    const name    = document.getElementById('editName').value.trim();
-    const contact = document.getElementById('editContact').value.trim();
-    const email   = document.getElementById('editEmail').value.trim();
-    const pin     = document.getElementById('editPin').value.trim();
-    const advance = parseFloat(document.getElementById('editAdvance').value) || 0;
-    const deposit = parseFloat(document.getElementById('editDeposit').value) || 0;
-
-    if (!name) { showToast('Name is required.', 'error'); return; }
-    if (contact && !/^\d+$/.test(contact)) { showToast('Contact must be numeric.', 'error'); return; }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('Invalid email format.', 'error'); return; }
-    if (pin && !/^\d{4}$/.test(pin)) { showToast('PIN must be exactly 4 digits.', 'error'); return; }
-
-    const btn = document.getElementById('saveTenantBtn');
-    btn.disabled = true;
-    btn.textContent = 'Saving…';
-
-    try {
-      const res  = await fetch(CONFIG.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'updateTenant', adminToken: localStorage.getItem('adminToken'),
-          tenantId: activeTenant.TenantID, name, contact, email, pin, advance, deposit })
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'Failed to update tenant');
-
-      activeTenant.Name    = name;
-      activeTenant.Contact = contact;
-      activeTenant.Email   = email;
-      activeTenant.Advance = advance;
-      activeTenant.Deposit = deposit;
-      const idx = tenants.findIndex(t => t.TenantID === activeTenant.TenantID);
-      if (idx >= 0) Object.assign(tenants[idx], activeTenant);
-
-      showToast('Tenant updated successfully.', 'success');
-      exitEditMode();
-    } catch (err) {
-      showToast(err.message || 'Failed to update tenant', 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Save Changes';
-    }
-  }
 
   async function showTenantDetail(tenant) {
     activeTenant = tenant;
     isEditMode = false;
     currentBalanceHtml = '<span class="text-muted">Loading…</span>';
     document.getElementById('detailPanelTitle').textContent = tenant.Name || 'Tenant Details';
-    document.getElementById('editTenantBtn').style.display = '';
     document.getElementById('recordPaymentBtn').classList.remove('hidden');
     document.getElementById('moveOutBtn').classList.remove('hidden');
-    document.getElementById('saveTenantBtn').classList.add('hidden');
-    document.getElementById('cancelEditBtn').classList.add('hidden');
     renderDetailView(tenant);
     // Show loading state for utilities section
     const utilSection = document.getElementById('detailUtilitiesSection');
@@ -779,27 +743,27 @@
         }
       }
 
-      // Update utilities section (detailed kWh/m³ breakdown)
+      const utilSection = document.getElementById('detailUtilitiesSection');
       if (utilSection) {
-        if (!unitId) {
-          utilSection.innerHTML = '';
-        } else if (readRes) {
-          const readJson = await readRes.json();
+        if (readingsRes) {
+          const readJson = await readingsRes.json();
           if (readJson.success && readJson.data && readJson.data.length > 0) {
             const row = readJson.data[0];
-            const elecCons  = (parseFloat(row.ElecConsumption  || 0)).toFixed(1);
-            const waterCons = (parseFloat(row.WaterConsumption || 0)).toFixed(1);
-            const elecCharge  = parseFloat(row.ElecCharge  || 0);
+            const elecKwh   = parseFloat(row.ElecConsumption || 0);
+            const waterCbm  = parseFloat(row.WaterConsumption || 0);
+            const elecCharge  = parseFloat(row.ElecCharge || 0);
             const waterCharge = parseFloat(row.WaterCharge || 0);
-            utilSection.innerHTML =
-              '<div class="utils-section">'
+            utilSection.innerHTML = '<div class="utils-section">'
               + '<div class="utils-section-title">This Month\'s Utilities</div>'
-              + '<div class="utils-breakdown-row"><span>Electric</span><span>' + escHtml(elecCons) + ' kWh → ' + peso(elecCharge) + '</span></div>'
-              + '<div class="utils-breakdown-row"><span>Water</span><span>' + escHtml(waterCons) + ' m³ → ' + peso(waterCharge) + '</span></div>'
+              + (elecKwh || elecCharge
+                  ? '<div class="utils-breakdown-row"><span class="utils-breakdown-label">Electric ' + escHtml(String(elecKwh)) + ' kWh</span><span class="utils-breakdown-value">' + peso(elecCharge) + '</span></div>'
+                  : '')
+              + (waterCbm || waterCharge
+                  ? '<div class="utils-breakdown-row"><span class="utils-breakdown-label">Water ' + escHtml(String(waterCbm)) + ' m³</span><span class="utils-breakdown-value">' + peso(waterCharge) + '</span></div>'
+                  : '')
               + '</div>';
           } else {
-            utilSection.innerHTML =
-              '<div class="utils-section">'
+            utilSection.innerHTML = '<div class="utils-section">'
               + '<div class="utils-section-title">This Month\'s Utilities</div>'
               + '<div class="utils-amber">No utility reading logged for this month yet</div>'
               + '</div>';
@@ -809,6 +773,8 @@
     } catch (_) {
       const notesEl = document.getElementById('detailNotesSection');
       if (notesEl) notesEl.innerHTML = '<div class="notes-empty">Could not load notes.</div>';
+      const utilSection = document.getElementById('detailUtilitiesSection');
+      if (utilSection) utilSection.innerHTML = '<div class="utils-section"><div class="utils-section-title">This Month\'s Utilities</div><div class="utils-amber">Could not load utility reading.</div></div>';
     }
   }
 
