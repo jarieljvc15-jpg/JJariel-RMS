@@ -152,6 +152,41 @@
       font-style: italic;
       padding: 8px 0;
     }
+    .utils-section {
+      margin: 4px 0 8px;
+    }
+    .utils-section-title {
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 16px 0 8px;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+    .utils-breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+    .utils-breakdown-row:last-child { border-bottom: none; }
+    .utils-breakdown-label { color: var(--text-secondary); }
+    .utils-breakdown-value { font-weight: 600; color: var(--text-primary); }
+    .utils-amber {
+      background: var(--warning-bg);
+      border: 1px solid #fcd34d;
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      font-size: 12px;
+      color: #78350f;
+      margin: 8px 0;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -571,7 +606,7 @@
       return `<div class="detail-row"><span class="detail-label">${escHtml(label)}</span><span class="detail-value">${escHtml(val)}</span></div>`;
     }).join('')
     + `<div class="detail-row" id="detailBalance"><span class="detail-label">Balance</span><span class="detail-value">${currentBalanceHtml}</span></div>`
-    + `<div class="detail-row" id="detailUtilities"><span class="detail-label">This Month Utilities</span><span class="detail-value"><span class="text-muted">Loading…</span></span></div>`
+    + `<div id="detailUtilitiesSection"></div>`
     + `<div class="detail-section-label">Notes</div>`
     + `<div id="detailNotesSection"><span class="text-muted" style="font-size:13px;">Loading…</span></div>`;
   }
@@ -743,32 +778,38 @@
         }
       }
 
-      if (readingsRes) {
-        const readJson = await readingsRes.json();
-        const utilEl = document.getElementById('detailUtilities');
-        if (utilEl) {
-          let utilHtml = '<span class="text-muted" style="font-style:italic;">No reading this month</span>';
+      const utilSection = document.getElementById('detailUtilitiesSection');
+      if (utilSection) {
+        if (readingsRes) {
+          const readJson = await readingsRes.json();
           if (readJson.success && readJson.data && readJson.data.length > 0) {
             const row = readJson.data[0];
-            const elec = parseFloat(row.ElecCharge || 0);
-            const water = parseFloat(row.WaterCharge || 0);
-            const total = elec + water;
-            if (total > 0) {
-              utilHtml = peso(total);
-              if (elec && water) utilHtml += `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">(Elec ${peso(elec)} + Water ${peso(water)})</span>`;
-            }
+            const elecKwh   = parseFloat(row.ElecConsumption || 0);
+            const waterCbm  = parseFloat(row.WaterConsumption || 0);
+            const elecCharge  = parseFloat(row.ElecCharge || 0);
+            const waterCharge = parseFloat(row.WaterCharge || 0);
+            utilSection.innerHTML = '<div class="utils-section">'
+              + '<div class="utils-section-title">This Month\'s Utilities</div>'
+              + (elecKwh || elecCharge
+                  ? '<div class="utils-breakdown-row"><span class="utils-breakdown-label">Electric ' + escHtml(String(elecKwh)) + ' kWh</span><span class="utils-breakdown-value">' + peso(elecCharge) + '</span></div>'
+                  : '')
+              + (waterCbm || waterCharge
+                  ? '<div class="utils-breakdown-row"><span class="utils-breakdown-label">Water ' + escHtml(String(waterCbm)) + ' m³</span><span class="utils-breakdown-value">' + peso(waterCharge) + '</span></div>'
+                  : '')
+              + '</div>';
+          } else {
+            utilSection.innerHTML = '<div class="utils-section">'
+              + '<div class="utils-section-title">This Month\'s Utilities</div>'
+              + '<div class="utils-amber">No utility reading logged for this month yet</div>'
+              + '</div>';
           }
-          utilEl.querySelector('.detail-value').innerHTML = utilHtml;
         }
-      } else {
-        const utilEl = document.getElementById('detailUtilities');
-        if (utilEl) utilEl.querySelector('.detail-value').innerHTML = '<span class="text-muted" style="font-style:italic;">No unit assigned</span>';
       }
     } catch (_) {
       const notesEl = document.getElementById('detailNotesSection');
       if (notesEl) notesEl.innerHTML = '<div class="notes-empty">Could not load notes.</div>';
-      const utilEl = document.getElementById('detailUtilities');
-      if (utilEl) utilEl.querySelector('.detail-value').innerHTML = '<span class="text-muted">—</span>';
+      const utilSection = document.getElementById('detailUtilitiesSection');
+      if (utilSection) utilSection.innerHTML = '<div class="utils-section"><div class="utils-section-title">This Month\'s Utilities</div><div class="utils-amber">Could not load utility reading.</div></div>';
     }
   }
 

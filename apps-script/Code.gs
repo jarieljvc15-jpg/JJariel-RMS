@@ -233,6 +233,31 @@ function getLedger(params) {
     rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
   }
 
+  var allTenants = sheetToJSON(getSheet("Tenants"));
+  var allUnits   = sheetToJSON(getSheet("Units"));
+  var buildings  = sheetToJSON(getSheet("Buildings"));
+
+  var tenantNameMap = {};
+  allTenants.forEach(function(t) { tenantNameMap[String(t["TenantID"])] = t["Name"] || ""; });
+
+  var bldMap = {};
+  buildings.forEach(function(b) { bldMap[String(b["BuildingID"])] = b["BuildingName"] || ""; });
+  var unitDisplayMap = {};
+  allUnits.forEach(function(u) {
+    var bldName = bldMap[String(u["BuildingID"])] || "";
+    unitDisplayMap[String(u["UnitID"])] = bldName
+      ? (u["UnitName"] || "") + " · " + bldName
+      : (u["UnitName"] || u["UnitID"] || "");
+  });
+
+  rows = rows.map(function(r) {
+    var tid = String(r["TenantID"] || "");
+    var uid = String(r["UnitID"] || "");
+    r["TenantName"]      = (tid && tenantNameMap[tid]) ? tenantNameMap[tid] : (tid || "—");
+    r["UnitDisplayName"] = (uid && unitDisplayMap[uid]) ? unitDisplayMap[uid] : (uid || "—");
+    return r;
+  });
+
   // Sort newest first by Date
   rows.sort(function(a, b) {
     var da = String(a["Date"] || "");
