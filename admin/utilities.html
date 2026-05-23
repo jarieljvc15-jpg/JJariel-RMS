@@ -96,6 +96,16 @@
       color: var(--text-muted);
       margin-top: 2px;
     }
+    .unit-tenant-name {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+    .unit-tenant-vacant {
+      color: var(--text-muted);
+      font-style: italic;
+    }
     .unit-actions {
       display: flex;
       flex-direction: column;
@@ -300,7 +310,7 @@
 </header>
 
 <!-- Page content -->
-<main class="page-content">
+<main class="page-content" style="padding-bottom: 80px;">
 
   <!-- Month selector -->
   <div class="month-row">
@@ -543,6 +553,8 @@
   let waterRateDefault = 0;
   // Per-unit previous readings map: unitId -> { elecPrev, waterPrev }
   let prevReadingsMap = {};
+  // unitId -> tenant name (undefined = vacant)
+  let tenantByUnit = {};
 
   // Current panel state
   let activeUnit = null;
@@ -566,9 +578,10 @@
     }, 10000);
 
     try {
-      const [unitsRes, readingsRes] = await Promise.all([
+      const [unitsRes, readingsRes, tenantsRes] = await Promise.all([
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getUnits').then(r => r.json()),
-        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month)).then(r => r.json())
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month)).then(r => r.json()),
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants').then(r => r.json())
       ]);
       clearTimeout(timeoutId);
 
@@ -577,6 +590,14 @@
 
       allUnits = unitsRes.data || [];
       allReadings = readingsRes.data || [];
+
+      // Build unitId → tenant name map
+      tenantByUnit = {};
+      if (tenantsRes.success && tenantsRes.data) {
+        tenantsRes.data.forEach(t => {
+          if (t.UnitID) tenantByUnit[t.UnitID] = t.Name;
+        });
+      }
 
       // Build prev readings map from returned data
       prevReadingsMap = {};
@@ -640,11 +661,17 @@
           actionHtml = '<button class="btn btn--outline btn--sm" onclick="openLogPanel(\'' + escHtml(u.UnitID) + '\')">Log Reading</button>';
         }
 
+        const tenantName = tenantByUnit[u.UnitID];
+        const tenantLine = tenantName
+          ? '<div class="unit-tenant-name">' + escHtml(tenantName) + '</div>'
+          : '<div class="unit-tenant-name unit-tenant-vacant">Vacant</div>';
+
         return '<div class="unit-row">'
           + '<div class="unit-id-badge">' + escHtml(u.UnitID) + '</div>'
           + '<div class="unit-info">'
           + '<div class="unit-name">' + escHtml(u.UnitName) + '</div>'
           + '<div class="unit-building">' + escHtml(u.BuildingName || '') + '</div>'
+          + tenantLine
           + sharedNote
           + '</div>'
           + '<div class="unit-actions">'
