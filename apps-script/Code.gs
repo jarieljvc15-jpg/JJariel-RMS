@@ -21,6 +21,7 @@ function doGet(e) {
       case "getBalance":     return respond(getBalance(params));
       case "getReadings":    return respond(getReadings(params));
       case "getExpenses":    return respond(getExpenses(params));
+      case "getNotes":       return respond(getNotes(params));
       case "verifyTenant":   return respond(verifyTenant(params));
       case "getDashboard":   return respond(getDashboardData());
       default:
@@ -1160,6 +1161,19 @@ function addNote(body) {
     Note:       note
   });
   return { timestamp: ts };
+}
+
+function getNotes(params) {
+  if (!params.tenantId) throw new Error("tenantId is required");
+  var rows = sheetToJSON(getOrCreateNotesSheet()).filter(function(r) {
+    return String(r["TenantID"]) === String(params.tenantId);
+  });
+  rows.sort(function(a, b) {
+    var ta = String(a["Timestamp"] || "");
+    var tb = String(b["Timestamp"] || "");
+    return ta < tb ? 1 : ta > tb ? -1 : 0;
+  });
+  return rows;
 }
 
 // ============================================================
