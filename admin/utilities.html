@@ -581,9 +581,12 @@
     }, 10000);
 
     try {
+      console.log('[Utilities] Loading month:', month);
+      const readingsUrl = CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month);
+      console.log('[Utilities] getReadings URL:', readingsUrl);
       const [unitsRes, readingsRes, tenantsRes, configRes] = await Promise.all([
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getUnits').then(r => r.json()),
-        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&billingMonth=' + encodeURIComponent(month)).then(r => r.json()),
+        fetch(readingsUrl).then(r => r.json()),
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getTenants').then(r => r.json()),
         fetch(CONFIG.APPS_SCRIPT_URL + '?action=getConfig').then(r => r.json())
       ]);
@@ -591,6 +594,7 @@
 
       if (!unitsRes.success) throw new Error(unitsRes.error || 'Failed to load units');
       if (!readingsRes.success) throw new Error(readingsRes.error || 'Failed to load readings');
+      console.log('[Utilities] Readings returned:', (readingsRes.data || []).map(r => ({ UnitID: r.UnitID, ReadingID: r.ReadingID, hasStub: !!r.previousReading && !r.ReadingID })));
 
       allUnits = unitsRes.data || [];
       allReadings = readingsRes.data || [];
@@ -626,7 +630,8 @@
   }
 
   function getReadingForUnit(unitId) {
-    return allReadings.find(r => r.UnitID === unitId && !r.previousReading) ||
+    // Real readings have ReadingID; stub rows (prev-reading-only) do not
+    return allReadings.find(r => r.UnitID === unitId && r.ReadingID) ||
            allReadings.find(r => r.UnitID === unitId);
   }
 
@@ -648,7 +653,8 @@
 
     content.innerHTML = Object.entries(buildingMap).map(([bld, units]) => {
       const rowsHtml = units.map(u => {
-        const reading = allReadings.find(r => r.UnitID === u.UnitID);
+        // Real readings have ReadingID; stub rows only have UnitID + previousReading
+        const reading = allReadings.find(r => r.UnitID === u.UnitID && r.ReadingID);
         const billingTypeBadge = u.BillingType === 'Combined'
           ? '<span class="badge-billing-shared">Shared</span>'
           : '<span class="badge-billing-metered">Metered</span>';
@@ -658,7 +664,7 @@
 
         let statusHtml = '';
         let actionHtml = '';
-        if (reading && !reading.previousReading) {
+        if (reading) {
           const elecStr = (parseFloat(reading.ElecConsumption) || 0).toFixed(1) + ' kWh (' + peso(reading.ElecCharge) + ')';
           const waterStr = (parseFloat(reading.WaterConsumption) || 0).toFixed(1) + ' m³ (' + peso(reading.WaterCharge) + ')';
           statusHtml = '<span class="badge-recorded"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Recorded</span>';

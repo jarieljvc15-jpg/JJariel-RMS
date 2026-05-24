@@ -246,16 +246,17 @@ function getLedger(params) {
   var unitDisplayMap = {};
   allUnits.forEach(function(u) {
     var bldName = bldMap[String(u["BuildingID"])] || "";
-    unitDisplayMap[String(u["UnitID"])] = bldName
-      ? (u["UnitName"] || "") + " · " + bldName
-      : (u["UnitName"] || u["UnitID"] || "");
+    // Always include UnitID as fallback so display is never blank
+    var unitLabel = u["UnitName"] || u["UnitID"] || "";
+    unitDisplayMap[String(u["UnitID"])] = bldName ? unitLabel + " · " + bldName : unitLabel;
   });
 
   rows = rows.map(function(r) {
     var tid = String(r["TenantID"] || "");
     var uid = String(r["UnitID"] || "");
-    r["TenantName"]      = (tid && tenantNameMap[tid]) ? tenantNameMap[tid] : (tid || "—");
-    r["UnitDisplayName"] = (uid && unitDisplayMap[uid]) ? unitDisplayMap[uid] : (uid || "—");
+    r["TenantName"]      = tenantNameMap[tid] || tid || "—";
+    // Fall back to raw UnitID for old/unrecognised unit IDs (e.g. MH-01 from test data)
+    r["UnitDisplayName"] = unitDisplayMap[uid] || uid || "—";
     return r;
   });
 
