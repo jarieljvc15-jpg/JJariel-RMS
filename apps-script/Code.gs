@@ -38,6 +38,28 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var action = body.action;
 
+    // Tenant-facing: no admin token required
+    if (action === "submitPaymentProof") {
+      var tLock = LockService.getScriptLock();
+      tLock.tryLock(10000);
+      try {
+        return respond(submitPaymentProof(body));
+      } finally {
+        tLock.releaseLock();
+      }
+    }
+
+    // Tenant proof upload: accept 'tenant' as adminToken for this action only
+    if (action === "uploadProof" && body.adminToken === "tenant") {
+      var uLock = LockService.getScriptLock();
+      uLock.tryLock(10000);
+      try {
+        return respond(uploadProof(e));
+      } finally {
+        uLock.releaseLock();
+      }
+    }
+
     var cfg = getConfig();
     if (body.adminToken !== cfg["AdminPassphrase"]) {
       return respond(null, "Unauthorized");
@@ -360,6 +382,11 @@ function verifyTenant(params) {
   tenant["UnitName"]    = unit["UnitName"]    || "";
   tenant["BillingType"] = unit["BillingType"] || "";
 
+  var buildings = sheetToJSON(getSheet("Buildings"));
+  var bldMap = {};
+  buildings.forEach(function(b) { bldMap[b["BuildingID"]] = b["BuildingName"]; });
+  tenant["BuildingName"] = bldMap[unit["BuildingID"]] || "";
+
   return tenant;
 }
 
@@ -650,6 +677,65 @@ function uploadProof(e) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
   return { driveUrl: file.getUrl() };
+}
+
+function submitPaymentProof(body) {
+  var tenantId    = String(body.tenantId    || "").trim();
+  var unitId      = String(body.unitId      || "").trim();
+  var referenceNo = String(body.referenceNo || "").trim();
+  var amountPaid  = parseFloat(body.amountPaid) || 0;
+  var driveUrl    = String(body.driveUrl    || "").trim();
+  var notes       = String(body.notes       || "").trim();
+  var submittedAt = String(body.submittedAt || "").trim();
+
+  if (!tenantId)    throw new Error("tenantId is required");
+  if (!referenceNo) throw new Error("referenceNo is required");
+  if (amountPaid <= 0) throw new Error("amountPaid must be greater than 0");
+
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName("PaymentProofs");
+  if (!sheet) {
+    sheet = ss.insertSheet("PaymentProofs");
+    sheet.appendRow(["SubmissionID", "TenantID", "UnitID", "ReferenceNo", "AmountPaid", "DriveURL", "Notes", "SubmittedAt", "Status"]);
+  }
+
+  var submissionId = "PROOF-" + Date.now();
+  appendSheetRow(sheet, {
+    SubmissionID: submissionId,
+    TenantID:     tenantId,
+    UnitID:       unitId,
+    ReferenceNo:  referenceNo,
+    AmountPaid:   amountPaid,
+    DriveURL:     driveUrl,
+    Notes:        notes,
+    SubmittedAt:  submittedAt,
+    Status:       "Pending"
+  });
+
+  var cfg        = getConfig();
+  var adminEmail = String(cfg["AdminEmail"] || "").trim();
+  if (adminEmail) {
+    try {
+      var allTenants = sheetToJSON(getSheet("Tenants"));
+      var tenant     = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0] || {};
+      var tenantName = tenant["Name"] || tenantId;
+      var allUnits   = sheetToJSON(getSheet("Units"));
+      var unit       = allUnits.filter(function(u) { return u["UnitID"] === unitId; })[0] || {};
+      var unitName   = unit["UnitName"] || unitId;
+
+      var subject  = "New Payment Proof — " + unitName + ", " + submittedAt;
+      var bodyText = "Tenant " + tenantName + " submitted payment proof.\n"
+        + "Ref: "    + referenceNo + "\n"
+        + "Amount: ₱" + amountPaid.toFixed(2) + "\n"
+        + "Notes: "  + (notes || "None") + "\n"
+        + (driveUrl ? "Screenshot: " + driveUrl : "");
+      GmailApp.sendEmail(adminEmail, subject, bodyText);
+    } catch (emailErr) {
+      Logger.log("submitPaymentProof email failed: " + emailErr.message);
+    }
+  }
+
+  return { submissionId: submissionId };
 }
 
 function saveReading(body) {
