@@ -24,7 +24,9 @@ function doGet(e) {
       case "getNotes":       return respond(getNotes(params));
       case "verifyTenant":   return respond(verifyTenant(params));
       case "getDashboard":   return respond(getDashboardData());
-      case "getConfig":      return respond(getConfig());
+      case "getPendingProofs": return respond(getPendingProofs(params));
+      case "getAllProofs":      return respond(getAllProofs(params));
+      case "getConfig":        return respond(getConfig());
       default:
         return respond(null, "Unknown action: " + action);
     }
@@ -81,6 +83,8 @@ function doPost(e) {
         case "sendReminder":   result = sendReminder(body);   break;
         case "updateTenant":   result = updateTenant(body);   break;
         case "updateConfig":   result = updateConfig(body);   break;
+        case "editPayment":    result = editPayment(body);    break;
+        case "voidPayment":    result = voidPayment(body);    break;
         default:
           result = { message: "Unknown action: " + action };
       }
@@ -346,7 +350,10 @@ function getReadings(params) {
     rows = rows.filter(function(r) { return String(r["UnitID"]) === String(params.unitId); });
   }
   if (params.billingMonth) {
-    rows = rows.filter(function(r) { return normMonth(r["BillingMonth"]) === normMonth(params.billingMonth); });
+    var bm = String(params.billingMonth || "").trim().substring(0, 7);
+    rows = rows.filter(function(r) {
+      return normMonth(r["BillingMonth"]) === bm;
+    });
   }
   return rows;
 }
@@ -688,51 +695,89 @@ function submitPaymentProof(body) {
   var notes       = String(body.notes       || "").trim();
   var submittedAt = String(body.submittedAt || "").trim();
 
-  if (!tenantId)    throw new Error("tenantId is required");
-  if (!referenceNo) throw new Error("referenceNo is required");
+  if (!tenantId)       throw new Error("tenantId is required");
+  if (!referenceNo)    throw new Error("referenceNo is required");
   if (amountPaid <= 0) throw new Error("amountPaid must be greater than 0");
+
+  var allTenants = sheetToJSON(getSheet("Tenants"));
+  var tenant     = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0];
+  if (!tenant) throw new Error("Tenant not found");
+  var tenantName = tenant["Name"] || tenantId;
+
+  var allUnits = sheetToJSON(getSheet("Units"));
+  var unit     = allUnits.filter(function(u) { return u["UnitID"] === unitId; })[0] || {};
+  var unitName = unit["UnitName"] || unitId;
 
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName("PaymentProofs");
   if (!sheet) {
     sheet = ss.insertSheet("PaymentProofs");
-    sheet.appendRow(["SubmissionID", "TenantID", "UnitID", "ReferenceNo", "AmountPaid", "DriveURL", "Notes", "SubmittedAt", "Status"]);
+    sheet.appendRow(["SubmissionID","TenantID","UnitID","TenantName","UnitName",
+                     "ReferenceNo","AmountPaid","DriveURL","Notes","SubmittedAt",
+                     "Status","ReviewedAt","ReviewNote","LedgerTxnID"]);
   }
+
+  var cfg          = getConfig();
+  var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+
+  // Auto-record payment in Ledger
+  var txnId = "PAY-" + tenantId + "-" + Date.now();
+  appendSheetRow(getSheet("Ledger"), {
+    TxnID:        txnId,
+    TenantID:     tenantId,
+    UnitID:       unitId,
+    BillingMonth: currentMonth,
+    TxnType:      "Payment",
+    Direction:    "Credit",
+    RentAmount:   amountPaid,
+    ElecAmount:   0,
+    WaterAmount:  0,
+    TotalAmount:  amountPaid,
+    PaymentMode:  "GCash",
+    ReferenceNo:  referenceNo,
+    Notes:        "Auto-recorded from tenant submission",
+    Date:         today
+  });
 
   var submissionId = "PROOF-" + Date.now();
   appendSheetRow(sheet, {
     SubmissionID: submissionId,
     TenantID:     tenantId,
     UnitID:       unitId,
+    TenantName:   tenantName,
+    UnitName:     unitName,
     ReferenceNo:  referenceNo,
     AmountPaid:   amountPaid,
     DriveURL:     driveUrl,
     Notes:        notes,
     SubmittedAt:  submittedAt,
-    Status:       "Pending"
+    Status:       "Auto-Approved",
+    ReviewedAt:   "",
+    ReviewNote:   "",
+    LedgerTxnID:  txnId
   });
 
-  var cfg        = getConfig();
-  var adminEmail = String(cfg["AdminEmail"] || "").trim();
+  var adminEmail  = String(cfg["AdminEmail"]  || "").trim();
+  var tenantEmail = String(tenant["Email"]    || "").trim();
+
   if (adminEmail) {
     try {
-      var allTenants = sheetToJSON(getSheet("Tenants"));
-      var tenant     = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0] || {};
-      var tenantName = tenant["Name"] || tenantId;
-      var allUnits   = sheetToJSON(getSheet("Units"));
-      var unit       = allUnits.filter(function(u) { return u["UnitID"] === unitId; })[0] || {};
-      var unitName   = unit["UnitName"] || unitId;
+      GmailApp.sendEmail(adminEmail,
+        "Payment Auto-Recorded — " + unitName,
+        "₱" + amountPaid.toFixed(2) + " from " + tenantName + " (" + unitName + ") has been auto-recorded.\n"
+          + "Ref: " + referenceNo + ".\n"
+          + "Review and adjust if needed in the Approvals page.");
+    } catch (e) { Logger.log("submitPaymentProof admin email failed: " + e.message); }
+  }
 
-      var subject  = "New Payment Proof — " + unitName + ", " + submittedAt;
-      var bodyText = "Tenant " + tenantName + " submitted payment proof.\n"
-        + "Ref: "    + referenceNo + "\n"
-        + "Amount: ₱" + amountPaid.toFixed(2) + "\n"
-        + "Notes: "  + (notes || "None") + "\n"
-        + (driveUrl ? "Screenshot: " + driveUrl : "");
-      GmailApp.sendEmail(adminEmail, subject, bodyText);
-    } catch (emailErr) {
-      Logger.log("submitPaymentProof email failed: " + emailErr.message);
-    }
+  if (tenantEmail) {
+    try {
+      GmailApp.sendEmail(tenantEmail,
+        "Payment Received — " + unitName,
+        "Your payment of ₱" + amountPaid.toFixed(2) + " (Ref: " + referenceNo + ") has been received and recorded.\n"
+          + "Contact your landlord if you have questions.");
+    } catch (e) { Logger.log("submitPaymentProof tenant email failed: " + e.message); }
   }
 
   return { submissionId: submissionId };
@@ -987,7 +1032,190 @@ function updateConfig(body) {
 }
 
 // ============================================================
-// EMAIL HELPERS
+// PAYMENT PROOFS
+// ============================================================
+
+function getPendingProofs(params) {
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName("PaymentProofs");
+  if (!sheet) return { data: [], pendingCount: 0 };
+
+  var rows = sheetToJSON(sheet).filter(function(r) {
+    return r["Status"] === "Auto-Approved";
+  });
+  rows.sort(function(a, b) {
+    var ta = String(a["SubmittedAt"] || "");
+    var tb = String(b["SubmittedAt"] || "");
+    return ta < tb ? 1 : ta > tb ? -1 : 0;
+  });
+  return { data: rows, pendingCount: rows.length };
+}
+
+function getAllProofs(params) {
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName("PaymentProofs");
+  if (!sheet) return [];
+
+  var rows = sheetToJSON(sheet);
+  if (params && params.status) {
+    rows = rows.filter(function(r) { return r["Status"] === params.status; });
+  }
+  rows.sort(function(a, b) {
+    var ta = String(a["SubmittedAt"] || "");
+    var tb = String(b["SubmittedAt"] || "");
+    return ta < tb ? 1 : ta > tb ? -1 : 0;
+  });
+  return rows;
+}
+
+function editPayment(body) {
+  var submissionId = String(body.submissionId || "").trim();
+  var rentAmount   = parseFloat(body.rentAmount)  || 0;
+  var elecAmount   = parseFloat(body.elecAmount)  || 0;
+  var waterAmount  = parseFloat(body.waterAmount) || 0;
+  var totalAmount  = parseFloat(body.totalAmount) || 0;
+  var paymentMode  = String(body.paymentMode  || "").trim();
+  var referenceNo  = String(body.referenceNo  || "").trim();
+  var billingMonth = String(body.billingMonth || "").trim();
+  var reviewNote   = String(body.reviewNote   || "").trim();
+
+  if (!submissionId) throw new Error("submissionId is required");
+
+  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  if (!proofSheet) throw new Error("PaymentProofs sheet not found");
+
+  var proofData    = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
+  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
+  var statusCol     = proofHeaders.indexOf("Status");
+  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
+  var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
+
+  var proofRowNum = -1;
+  var ledgerTxnId = "";
+  for (var i = 1; i < proofData.length; i++) {
+    if (String(proofData[i][sidCol]) === submissionId) {
+      proofRowNum = i + 1;
+      ledgerTxnId = String(proofData[i][txnIdCol] || "");
+      break;
+    }
+  }
+  if (proofRowNum < 0) throw new Error("Submission not found");
+  if (!ledgerTxnId)    throw new Error("No ledger entry linked to this submission");
+
+  var ledgerSheet   = getSheet("Ledger");
+  var ledgerData    = ledgerSheet.getDataRange().getValues();
+  var ledgerHeaders = ledgerData[0].map(function(h) { return String(h).trim(); });
+  var lTxnCol    = ledgerHeaders.indexOf("TxnID");
+  var lRentCol   = ledgerHeaders.indexOf("RentAmount");
+  var lElecCol   = ledgerHeaders.indexOf("ElecAmount");
+  var lWaterCol  = ledgerHeaders.indexOf("WaterAmount");
+  var lTotalCol  = ledgerHeaders.indexOf("TotalAmount");
+  var lModeCol   = ledgerHeaders.indexOf("PaymentMode");
+  var lRefCol    = ledgerHeaders.indexOf("ReferenceNo");
+  var lNotesCol  = ledgerHeaders.indexOf("Notes");
+  var lMonthCol  = ledgerHeaders.indexOf("BillingMonth");
+
+  var ledgerRowNum = -1;
+  for (var j = 1; j < ledgerData.length; j++) {
+    if (String(ledgerData[j][lTxnCol]) === ledgerTxnId) {
+      ledgerRowNum = j + 1;
+      break;
+    }
+  }
+  if (ledgerRowNum < 0) throw new Error("Ledger entry not found");
+
+  var notesValue = reviewNote ? "Edited by admin. " + reviewNote : "Edited by admin.";
+  if (lRentCol  >= 0) ledgerSheet.getRange(ledgerRowNum, lRentCol  + 1).setValue(rentAmount);
+  if (lElecCol  >= 0) ledgerSheet.getRange(ledgerRowNum, lElecCol  + 1).setValue(elecAmount);
+  if (lWaterCol >= 0) ledgerSheet.getRange(ledgerRowNum, lWaterCol + 1).setValue(waterAmount);
+  if (lTotalCol >= 0) ledgerSheet.getRange(ledgerRowNum, lTotalCol + 1).setValue(totalAmount);
+  if (lModeCol  >= 0) ledgerSheet.getRange(ledgerRowNum, lModeCol  + 1).setValue(paymentMode);
+  if (lRefCol   >= 0) ledgerSheet.getRange(ledgerRowNum, lRefCol   + 1).setValue(referenceNo);
+  if (lNotesCol >= 0) ledgerSheet.getRange(ledgerRowNum, lNotesCol + 1).setValue(notesValue);
+  if (lMonthCol >= 0 && billingMonth) ledgerSheet.getRange(ledgerRowNum, lMonthCol + 1).setValue(billingMonth);
+
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Reviewed");
+  if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
+  if (reviewNoteCol >= 0) proofSheet.getRange(proofRowNum, reviewNoteCol + 1).setValue(reviewNote);
+
+  return { updated: true };
+}
+
+function voidPayment(body) {
+  var submissionId = String(body.submissionId || "").trim();
+  var reviewNote   = String(body.reviewNote   || "").trim();
+
+  if (!submissionId) throw new Error("submissionId is required");
+
+  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  if (!proofSheet) throw new Error("PaymentProofs sheet not found");
+
+  var proofData    = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
+  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
+  var statusCol     = proofHeaders.indexOf("Status");
+  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
+  var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
+  var tenantIdCol   = proofHeaders.indexOf("TenantID");
+  var unitNameCol   = proofHeaders.indexOf("UnitName");
+
+  var proofRowNum = -1;
+  var ledgerTxnId = "";
+  var tenantId    = "";
+  var unitName    = "";
+  for (var i = 1; i < proofData.length; i++) {
+    if (String(proofData[i][sidCol]) === submissionId) {
+      proofRowNum = i + 1;
+      ledgerTxnId = String(proofData[i][txnIdCol]   || "");
+      tenantId    = String(proofData[i][tenantIdCol] || "");
+      unitName    = String(proofData[i][unitNameCol] || "");
+      break;
+    }
+  }
+  if (proofRowNum < 0) throw new Error("Submission not found");
+
+  if (ledgerTxnId) {
+    var ledgerSheet = getSheet("Ledger");
+    var ledgerData  = ledgerSheet.getDataRange().getValues();
+    var lHeaders    = ledgerData[0].map(function(h) { return String(h).trim(); });
+    var lTxnCol     = lHeaders.indexOf("TxnID");
+    for (var j = ledgerData.length - 1; j >= 1; j--) {
+      if (String(ledgerData[j][lTxnCol]) === ledgerTxnId) {
+        ledgerSheet.deleteRow(j + 1);
+        break;
+      }
+    }
+  }
+
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Voided");
+  if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
+  if (reviewNoteCol >= 0) proofSheet.getRange(proofRowNum, reviewNoteCol + 1).setValue(reviewNote);
+
+  if (tenantId) {
+    var allTenants  = sheetToJSON(getSheet("Tenants"));
+    var tenant      = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0] || {};
+    var tenantEmail = String(tenant["Email"] || "").trim();
+    if (tenantEmail) {
+      try {
+        GmailApp.sendEmail(tenantEmail,
+          "Payment Proof Issue — " + unitName,
+          "There was an issue with your payment. Reason: " + (reviewNote || "Please contact your landlord.") + "\n"
+            + "Please contact your landlord to resubmit.");
+      } catch (e) { Logger.log("voidPayment email failed: " + e.message); }
+    }
+  }
+
+  return { voided: true };
+}
+
+
 // Config sheet rows required:
 //   PropertyName  — e.g. "JJ Apartment"
 //   AdminContact  — phone / Messenger shown in footer
@@ -1277,16 +1505,24 @@ function addNote(body) {
 }
 
 function getNotes(params) {
-  if (!params.tenantId) throw new Error("tenantId is required");
-  var rows = sheetToJSON(getOrCreateNotesSheet()).filter(function(r) {
-    return String(r["TenantID"]) === String(params.tenantId);
-  });
-  rows.sort(function(a, b) {
-    var ta = String(a["Timestamp"] || "");
-    var tb = String(b["Timestamp"] || "");
-    return ta < tb ? 1 : ta > tb ? -1 : 0;
-  });
-  return rows;
+  if (!params.tenantId) return [];
+  try {
+    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName("Notes");
+    if (!sheet) return [];
+    var rows = sheetToJSON(sheet).filter(function(r) {
+      return String(r["TenantID"]) === String(params.tenantId);
+    });
+    rows.sort(function(a, b) {
+      var ta = String(a["Timestamp"] || "");
+      var tb = String(b["Timestamp"] || "");
+      return ta < tb ? 1 : ta > tb ? -1 : 0;
+    });
+    return rows;
+  } catch (e) {
+    Logger.log("getNotes error: " + e.message);
+    return [];
+  }
 }
 
 // ============================================================
