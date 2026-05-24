@@ -150,8 +150,16 @@
       font-size: 11px;
       color: var(--text-secondary);
     }
-    @media (max-width: 767px) {
+    @media (max-width: 640px) {
       .col-desktop { display: none; }
+      /* Ensure the 4 visible columns (Date, Tenant, Type, Total) fill the width
+         without horizontal scroll, and Total is never cut off */
+      .ledger-table-wrap { overflow-x: hidden; }
+      table { table-layout: fixed; width: 100%; }
+      th, td { padding: 8px 6px; }
+      /* Column widths for mobile: Date(72px) Tenant(auto) Type(56px) Total(72px) */
+      th:first-child, td:first-child { width: 72px; }
+      th:nth-child(3), td:nth-child(3) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     }
     /* Panel */
     .panel-overlay {
