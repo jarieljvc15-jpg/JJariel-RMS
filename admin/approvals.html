@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Approvals — JJ Apartment RMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+      position: sticky;
+      top: 56px;
+      z-index: 90;
+    }
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 13px 8px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .tab-btn.active {
+      color: var(--accent-dark);
+      border-bottom-color: var(--accent);
+    }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    .tab-count {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 7px;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* ── Submission card ── */
+    .submission-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: border-color 0.15s;
+    }
+    .submission-card.reviewed {
+      border-left: 3px solid var(--success);
+    }
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-tenant-name {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--navy-900);
+    }
+    .card-unit-badge {
+      display: inline-block;
+      background: var(--navy-50);
+      color: var(--navy-500);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      padding: 2px 8px;
+      margin-left: 8px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Mono', monospace;
+    }
+    .card-time {
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-left: 8px;
+    }
+    .card-amount-row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .card-amount {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 800;
+      font-size: 22px;
+      color: var(--navy-900);
+    }
+    .card-ref-pill {
+      background: var(--navy-50);
+      border-radius: 4px;
+      font-size: 12px;
+      padding: 2px 10px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Mono', monospace;
+      color: var(--text-secondary);
+      margin-left: 4px;
+    }
+    .card-reviewed-badge {
+      background: var(--success-bg);
+      color: var(--success);
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 10px;
+      font-family: 'Inter', sans-serif;
+    }
+    .card-notes {
+      margin-top: 6px;
+      font-style: italic;
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .card-screenshot-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 6px;
+      color: var(--accent);
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 13px;
+      text-decoration: none;
+    }
+    .card-screenshot-link svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .card-actions {
+      margin-top: 14px;
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ── Empty state ── */
+    .empty-state-approvals {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+      text-align: center;
+    }
+    .empty-state-approvals svg {
+      width: 40px;
+      height: 40px;
+      stroke: var(--success);
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .empty-state-approvals-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--success);
+      margin-top: 12px;
+    }
+    .empty-state-approvals-sub {
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ── Filter pills ── */
+    .filter-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .filter-pill {
+      background: var(--navy-50);
+      color: var(--text-secondary);
+      border-radius: var(--radius-pill);
+      padding: 6px 14px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .filter-pill.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ── Panel overlay ── */
+    .panel-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: none;
+      align-items: flex-end;
+    }
+    .panel-overlay.open { display: flex; }
+    .panel {
+      background: var(--white);
+      width: 100%;
+      max-height: 92vh;
+      border-radius: 16px 16px 0 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-primary);
+    }
+    .panel-close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+    }
+    .panel-close:hover { background: rgba(0,0,0,0.06); }
+    .panel-close svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .panel-body {
+      overflow-y: auto;
+      padding: 16px;
+      flex: 1;
+    }
+
+    /* ── Edit panel ── */
+    .edit-section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 16px 0;
+    }
+    .edit-section-label {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .split-validation {
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    .split-validation.ok { color: var(--success); }
+    .split-validation.mismatch { color: var(--danger); }
+
+    .mode-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .mode-pill {
+      padding: 7px 16px;
+      border-radius: var(--radius-pill);
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      border: 1.5px solid var(--border);
+      background: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .mode-pill.active {
+      background: var(--navy-900);
+      color: #fff;
+      border-color: var(--navy-900);
+    }
+
+    /* ── Void modal (centered) ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 24px 20px 20px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .modal-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-primary);
+    }
+    .modal-subtitle {
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ── Detail read-only ── */
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label {
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      flex-shrink: 0;
+    }
+    .detail-value {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-primary);
+      text-align: right;
+    }
+
+    /* ── Table ── */
+    .table-scroll { overflow-x: auto; }
+    .table-scroll table { min-width: 540px; }
+    .table-scroll table th, .table-scroll table td { padding: 10px 12px; }
+    .table-scroll table thead th {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      background: var(--off-white);
+      white-space: nowrap;
+    }
+    .table-scroll table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.1s;
+    }
+    .table-scroll table tbody tr:last-child { border-bottom: none; }
+    .table-scroll table tbody tr:hover { background: var(--navy-50); }
+    .table-scroll table tbody td {
+      font-size: 13px;
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+
+    /* ── Loading inline ── */
+    .loading-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+      padding: 48px 0;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* ── Toast ── */
+    .toast-container {
+      position: fixed;
+      bottom: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+      width: calc(100% - 32px);
+      max-width: 400px;
+    }
+    .toast {
+      pointer-events: auto;
+      animation: toastIn 0.2s ease;
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-md);
+    }
+    .toast svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- Auth guard -->
+<script>if (!localStorage.getItem('adminToken')) window.location.href = '../index.html';</script>
+
+<!-- Topbar -->
+<header class="topbar">
+  <div class="topbar-logo">
+    <div class="topbar-logo-name">JJ Apartment</div>
+    <div class="topbar-logo-sub">Payment Approvals</div>
+  </div>
+</header>
+
+<!-- Page content -->
+<main class="page-content">
+
+  <!-- Tab bar -->
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" id="tabReviewBtn" role="tab" aria-selected="true" aria-controls="tab-review">
+      Needs Review
+      <span class="tab-count" id="pendingBadge">0</span>
+    </button>
+    <button class="tab-btn" id="tabAllBtn" role="tab" aria-selected="false" aria-controls="tab-all">
+      All Submissions
+    </button>
+  </div>
+
+  <!-- Tab 1: Needs Review -->
+  <div class="tab-pane active" id="tab-review" role="tabpanel">
+
+    <div id="reviewLoading" class="loading-row">
+      <div class="spinner"></div>
+      <span>Loading...</span>
+    </div>
+
+    <div id="reviewEmpty" class="empty-state-approvals hidden">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+      <div class="empty-state-approvals-title">All caught up!</div>
+      <div class="empty-state-approvals-sub">No payments need review.</div>
+    </div>
+
+    <div id="reviewList" class="hidden"></div>
+
+  </div>
+
+  <!-- Tab 2: All Submissions -->
+  <div class="tab-pane" id="tab-all" role="tabpanel">
+
+    <div id="allLoading" class="loading-row hidden">
+      <div class="spinner"></div>
+      <span>Loading...</span>
+    </div>
+
+    <div id="allContent" class="hidden">
+      <div class="filter-pills" id="filterPills">
+        <button class="filter-pill active" data-filter="all">All</button>
+        <button class="filter-pill" data-filter="needs-review">Needs Review</button>
+        <button class="filter-pill" data-filter="reviewed">Reviewed</button>
+        <button class="filter-pill" data-filter="voided">Voided</button>
+      </div>
+
+      <div class="table-wrapper">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Tenant</th>
+                <th>Unit</th>
+                <th style="text-align:right;">Amount</th>
+                <th>Ref</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="allTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="allEmpty" class="empty-state-approvals hidden">
+      <svg viewBox="0 0 24 24" aria-hidden="true" style="stroke:var(--text-muted);">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <div style="font-family:'Satoshi','Inter',sans-serif;font-weight:700;font-size:18px;color:var(--text-muted);margin-top:12px;">No submissions yet</div>
+      <div class="empty-state-approvals-sub">Payment proofs will appear here.</div>
+    </div>
+
+  </div>
+
+</main>
+
+<!-- Bottom nav -->
+<nav class="bottom-nav">
+  <a href="./index.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="./tenants.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path d="M16 3.13a4 4 0 010 7.75M21 21v-2a4 4 0 00-3-3.87"/></svg>
+    <span>Tenants</span>
+  </a>
+  <a href="./approvals.html" class="bottom-nav-item active">
+    <span style="position:relative;display:inline-flex;">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span id="approvalsDot" style="display:none;position:absolute;top:-2px;right:-2px;width:8px;height:8px;background:var(--warning);border-radius:50%;"></span>
+    </span>
+    <span>Approvals</span>
+  </a>
+  <a href="./ledger.html" class="bottom-nav-item">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+    <span>Ledger</span>
+  </a>
+  <button class="bottom-nav-item" id="moreBtn">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+    <span>More</span>
+  </button>
+</nav>
+
+<!-- More drawer -->
+<div class="drawer-overlay" id="moreDrawer">
+  <div class="drawer" role="dialog" aria-label="More options">
+    <div class="drawer-handle"></div>
+    <div class="drawer-title">More</div>
+    <a href="./billing.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span class="drawer-item-label">Billing</span>
+    </a>
+    <a href="./units.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="drawer-item-label">Units</span>
+    </a>
+    <a href="./utilities.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span class="drawer-item-label">Utilities</span>
+    </a>
+    <a href="./expenses.html" class="drawer-item">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      <span class="drawer-item-label">Expenses</span>
+    </a>
+  </div>
+</div>
+
+<!-- Edit Payment slide-up -->
+<div class="panel-overlay" id="editPanel">
+  <div class="panel" role="dialog" aria-label="Edit Payment">
+    <div class="panel-header">
+      <div class="panel-title" id="editPanelTitle">Edit Payment</div>
+      <button class="panel-close" id="editPanelClose">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="panel-body">
+
+      <div class="form-group">
+        <label class="form-label" for="editTotal">TOTAL AMOUNT (&#8369;)</label>
+        <input class="form-input" type="number" id="editTotal" min="0" step="0.01" placeholder="0.00">
+      </div>
+
+      <hr class="edit-section-divider">
+
+      <div class="edit-section-label">Payment Split</div>
+      <div class="split-grid">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:10px;" for="editRent">RENT &#8369;</label>
+          <input class="form-input" type="number" id="editRent" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:10px;" for="editElec">ELECTRIC &#8369;</label>
+          <input class="form-input" type="number" id="editElec" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" style="font-size:10px;" for="editWater">WATER &#8369;</label>
+          <input class="form-input" type="number" id="editWater" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div class="split-validation ok" id="splitValidation">&#8369;0.00 of &#8369;0.00 allocated</div>
+
+      <hr class="edit-section-divider">
+
+      <div class="form-group">
+        <label class="form-label">PAYMENT MODE</label>
+        <div class="mode-pills">
+          <button class="mode-pill active" id="modeGcash" data-mode="GCash">GCash</button>
+          <button class="mode-pill" id="modeCash" data-mode="Cash">Cash</button>
+          <button class="mode-pill" id="modeBank" data-mode="Bank Transfer">Bank Transfer</button>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:14px;">
+        <label class="form-label" for="editRef">REFERENCE NO.</label>
+        <input class="form-input" type="text" id="editRef" placeholder="e.g. 123456789">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="editMonth">BILLING MONTH</label>
+        <input class="form-input" type="text" id="editMonth" placeholder="YYYY-MM" maxlength="7">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="editNote">ADMIN NOTE (OPTIONAL)</label>
+        <textarea class="form-input" id="editNote" rows="2" placeholder="Reason for edit" style="resize:none;"></textarea>
+      </div>
+
+      <button class="btn btn--primary btn--full" id="editSaveBtn" style="margin-top:8px;">Save Changes</button>
+      <button class="btn btn--ghost btn--full" id="editCancelBtn" style="margin-top:8px;">Cancel</button>
+
+    </div>
+  </div>
+</div>
+
+<!-- Void Confirm Modal -->
+<div class="modal-overlay" id="voidModal">
+  <div class="modal-box" role="dialog" aria-label="Void payment confirmation">
+    <div class="modal-title">Void this payment?</div>
+    <div class="modal-subtitle">This will delete the Ledger entry. The tenant will be notified.</div>
+    <div class="form-group" style="margin-top:16px;">
+      <label class="form-label" for="voidReason">REASON (REQUIRED)</label>
+      <textarea class="form-input" id="voidReason" rows="3" placeholder="Explain why this payment is being voided..." style="resize:none;"></textarea>
+    </div>
+    <button class="btn btn--danger btn--full" id="confirmVoidBtn" style="margin-top:4px;">Confirm Void</button>
+    <button class="btn btn--ghost btn--full" id="voidCancelBtn" style="margin-top:8px;">Cancel</button>
+  </div>
+</div>
+
+<!-- Detail slide-up (Reviewed / Voided) -->
+<div class="panel-overlay" id="detailPanel">
+  <div class="panel" role="dialog" aria-label="Submission detail">
+    <div class="panel-header">
+      <div class="panel-title" id="detailPanelTitle">Payment Detail</div>
+      <button class="panel-close" id="detailPanelClose">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="panel-body" id="detailPanelBody"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../assets/config.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const adminToken = localStorage.getItem('adminToken');
+
+  // ── Utility functions ────────────────────────────────────────
+
+  function peso(n) {
+    return '₱' + Number(n || 0).toLocaleString('en-PH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function timeAgo(dateStr) {
+    if (!dateStr) return '';
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    var diffMs = Date.now() - d.getTime();
+    var diffHours = diffMs / 3600000;
+    if (diffHours < 1) return 'Just now';
+    if (diffHours < 24) return Math.floor(diffHours) + 'h ago';
+    return fmtDate(dateStr);
+  }
+
+  function fmtDate(str) {
+    if (!str) return '';
+    var d = new Date(str);
+    if (isNaN(d.getTime())) return str;
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function showToast(msg, type) {
+    var c = document.getElementById('toastContainer');
+    var t = document.createElement('div');
+    var isOk = type === 'success';
+    t.className = 'toast alert alert--' + (isOk ? 'success' : 'danger');
+    if (isOk) {
+      t.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>' + esc(msg) + '</span>';
+    } else {
+      t.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>' + esc(msg) + '</span>';
+    }
+    c.appendChild(t);
+    setTimeout(function () { t.remove(); }, 3500);
+  }
+
+  // ── Drawer ───────────────────────────────────────────────────
+
+  var drawer = document.getElementById('moreDrawer');
+  document.getElementById('moreBtn').addEventListener('click', function () {
+    drawer.classList.add('open');
+  });
+  drawer.addEventListener('click', function (e) {
+    if (e.target === drawer) drawer.classList.remove('open');
+  });
+
+  // ── Tab switching ────────────────────────────────────────────
+
+  var allTabLoaded = false;
+
+  document.getElementById('tabReviewBtn').addEventListener('click', function () {
+    document.getElementById('tabReviewBtn').classList.add('active');
+    document.getElementById('tabReviewBtn').setAttribute('aria-selected', 'true');
+    document.getElementById('tabAllBtn').classList.remove('active');
+    document.getElementById('tabAllBtn').setAttribute('aria-selected', 'false');
+    document.getElementById('tab-review').classList.add('active');
+    document.getElementById('tab-all').classList.remove('active');
+  });
+
+  document.getElementById('tabAllBtn').addEventListener('click', function () {
+    document.getElementById('tabAllBtn').classList.add('active');
+    document.getElementById('tabAllBtn').setAttribute('aria-selected', 'true');
+    document.getElementById('tabReviewBtn').classList.remove('active');
+    document.getElementById('tabReviewBtn').setAttribute('aria-selected', 'false');
+    document.getElementById('tab-all').classList.add('active');
+    document.getElementById('tab-review').classList.remove('active');
+    if (!allTabLoaded) {
+      allTabLoaded = true;
+      loadAllTab();
+    }
+  });
+
+  // ── Review tab ───────────────────────────────────────────────
+
+  function loadReviewTab() {
+    document.getElementById('reviewLoading').classList.remove('hidden');
+    document.getElementById('reviewEmpty').classList.add('hidden');
+    document.getElementById('reviewList').classList.add('hidden');
+
+    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getPendingProofs')
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        document.getElementById('reviewLoading').classList.add('hidden');
+        if (!json.success) throw new Error(json.error || 'API error');
+        var proofs = json.data || [];
+        var count = proofs.length;
+        document.getElementById('pendingBadge').textContent = count;
+        if (count > 0) {
+          document.getElementById('approvalsDot').style.display = 'block';
+        }
+        if (count === 0) {
+          document.getElementById('reviewEmpty').classList.remove('hidden');
+        } else {
+          var list = document.getElementById('reviewList');
+          list.innerHTML = proofs.map(renderReviewCard).join('');
+          list.classList.remove('hidden');
+          bindReviewCardListeners(list);
+        }
+      })
+      .catch(function (err) {
+        document.getElementById('reviewLoading').classList.add('hidden');
+        showToast(err.message || 'Failed to load pending proofs.', 'error');
+      });
+  }
+
+  function renderReviewCard(proof) {
+    var notesHtml = (proof.Notes && proof.Notes.trim())
+      ? '<div class="card-notes">' + esc(proof.Notes) + '</div>'
+      : '';
+    var screenshotHtml = proof.DriveURL
+      ? '<div style="margin-top:6px;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
+      : '';
+    var proofJson = esc(JSON.stringify(proof));
+    return '<div class="submission-card" data-submission-id="' + esc(proof.SubmissionID) + '">'
+      + '<div class="card-header-row">'
+      +   '<div style="display:flex;align-items:center;min-width:0;">'
+      +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
+      +     '<span class="card-unit-badge">' + esc(proof.UnitNo || proof.Unit || '') + '</span>'
+      +   '</div>'
+      +   '<span class="card-time">' + timeAgo(proof.SubmittedAt) + '</span>'
+      + '</div>'
+      + '<div class="card-amount-row">'
+      +   '<span class="card-amount">' + peso(proof.AmountPaid) + '</span>'
+      +   (proof.ReferenceNo ? '<span class="card-ref-pill">' + esc(proof.ReferenceNo) + '</span>' : '')
+      + '</div>'
+      + notesHtml
+      + screenshotHtml
+      + '<div class="card-actions">'
+      +   '<button class="btn btn--outline btn--sm edit-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + esc(proof.SubmissionID) + '" data-proof="' + proofJson + '">'
+      +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+      +     'Edit Payment'
+      +   '</button>'
+      +   '<button class="btn btn--danger btn--sm void-btn" data-submission-id="' + esc(proof.SubmissionID) + '" data-tenant-name="' + esc(proof.TenantName) + '">'
+      +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+      +     'Void'
+      +   '</button>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function bindReviewCardListeners(container) {
+    container.querySelectorAll('.edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var proof = JSON.parse(btn.getAttribute('data-proof'));
+        openEditPanel(proof);
+      });
+    });
+    container.querySelectorAll('.void-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        pendingVoidId = btn.getAttribute('data-submission-id');
+        pendingVoidName = btn.getAttribute('data-tenant-name');
+        document.getElementById('voidReason').value = '';
+        document.getElementById('voidModal').classList.add('open');
+      });
+    });
+  }
+
+  // ── Edit panel ───────────────────────────────────────────────
+
+  var activeEditSubmissionId = null;
+  var activeEditProof = null;
+
+  function openEditPanel(proof) {
+    activeEditSubmissionId = proof.SubmissionID;
+    activeEditProof = proof;
+
+    var now = new Date();
+    var mm = String(now.getMonth() + 1).padStart(2, '0');
+    var defaultMonth = now.getFullYear() + '-' + mm;
+
+    document.getElementById('editPanelTitle').textContent = 'Edit Payment — ' + (proof.TenantName || '');
+    document.getElementById('editTotal').value = Number(proof.AmountPaid || 0).toFixed(2);
+    document.getElementById('editRent').value  = Number(proof.AmountPaid || 0).toFixed(2);
+    document.getElementById('editElec').value  = '0.00';
+    document.getElementById('editWater').value = '0.00';
+    document.getElementById('editRef').value   = proof.ReferenceNo || '';
+    document.getElementById('editMonth').value = proof.BillingMonth || defaultMonth;
+    document.getElementById('editNote').value  = '';
+
+    // Reset mode pills
+    document.querySelectorAll('.mode-pill').forEach(function (p) {
+      p.classList.remove('active');
+    });
+    document.getElementById('modeGcash').classList.add('active');
+    selectedMode = 'GCash';
+
+    updateSplitValidation();
+    document.getElementById('editPanel').classList.add('open');
+  }
+
+  var selectedMode = 'GCash';
+
+  document.querySelectorAll('.mode-pill').forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      document.querySelectorAll('.mode-pill').forEach(function (p) { p.classList.remove('active'); });
+      pill.classList.add('active');
+      selectedMode = pill.getAttribute('data-mode');
+    });
+  });
+
+  function updateSplitValidation() {
+    var total = parseFloat(document.getElementById('editTotal').value) || 0;
+    var rent  = parseFloat(document.getElementById('editRent').value)  || 0;
+    var elec  = parseFloat(document.getElementById('editElec').value)  || 0;
+    var water = parseFloat(document.getElementById('editWater').value) || 0;
+    var sum   = Math.round((rent + elec + water) * 100) / 100;
+    var tot   = Math.round(total * 100) / 100;
+    var el    = document.getElementById('splitValidation');
+    var saveBtn = document.getElementById('editSaveBtn');
+    if (sum === tot) {
+      el.className = 'split-validation ok';
+      el.textContent = peso(sum) + ' of ' + peso(tot) + ' allocated';
+      saveBtn.disabled = false;
+    } else {
+      el.className = 'split-validation mismatch';
+      el.textContent = peso(sum) + ' of ' + peso(tot) + ' allocated (mismatch)';
+      saveBtn.disabled = true;
+    }
+  }
+
+  document.getElementById('editTotal').addEventListener('input', function () {
+    var total = parseFloat(this.value) || 0;
+    document.getElementById('editRent').value  = total.toFixed(2);
+    document.getElementById('editElec').value  = '0.00';
+    document.getElementById('editWater').value = '0.00';
+    updateSplitValidation();
+  });
+  document.getElementById('editRent').addEventListener('input', updateSplitValidation);
+  document.getElementById('editElec').addEventListener('input', updateSplitValidation);
+  document.getElementById('editWater').addEventListener('input', updateSplitValidation);
+
+  document.getElementById('editPanelClose').addEventListener('click', function () {
+    document.getElementById('editPanel').classList.remove('open');
+  });
+  document.getElementById('editCancelBtn').addEventListener('click', function () {
+    document.getElementById('editPanel').classList.remove('open');
+  });
+  document.getElementById('editPanel').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('editPanel'))
+      document.getElementById('editPanel').classList.remove('open');
+  });
+
+  document.getElementById('editSaveBtn').addEventListener('click', function () {
+    var btn = document.getElementById('editSaveBtn');
+    if (btn.disabled) return;
+    var total = parseFloat(document.getElementById('editTotal').value) || 0;
+    var rent  = parseFloat(document.getElementById('editRent').value)  || 0;
+    var elec  = parseFloat(document.getElementById('editElec').value)  || 0;
+    var water = parseFloat(document.getElementById('editWater').value) || 0;
+    var ref   = document.getElementById('editRef').value.trim();
+    var month = document.getElementById('editMonth').value.trim();
+    var note  = document.getElementById('editNote').value.trim();
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'editPayment',
+        adminToken: adminToken,
+        submissionId: activeEditSubmissionId,
+        rentAmount: rent,
+        elecAmount: elec,
+        waterAmount: water,
+        totalAmount: total,
+        paymentMode: selectedMode,
+        referenceNo: ref,
+        billingMonth: month,
+        reviewNote: note
+      })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (json) {
+      if (!json.success) throw new Error(json.error || 'Failed to save');
+      document.getElementById('editPanel').classList.remove('open');
+
+      // Mark card as reviewed in DOM
+      var card = document.querySelector('.submission-card[data-submission-id="' + activeEditSubmissionId + '"]');
+      if (card) {
+        card.classList.add('reviewed');
+        var actions = card.querySelector('.card-actions');
+        if (actions) actions.style.display = 'none';
+        var amtRow = card.querySelector('.card-amount-row');
+        if (amtRow) {
+          var badge = document.createElement('span');
+          badge.className = 'card-reviewed-badge';
+          badge.textContent = 'Reviewed';
+          amtRow.appendChild(badge);
+        }
+      }
+      showToast('Payment updated successfully.', 'success');
+    })
+    .catch(function (err) {
+      showToast(err.message || 'Failed to save payment.', 'error');
+    })
+    .finally(function () {
+      btn.disabled = false;
+      btn.textContent = 'Save Changes';
+    });
+  });
+
+  // ── Void flow ────────────────────────────────────────────────
+
+  var pendingVoidId   = null;
+  var pendingVoidName = null;
+
+  document.getElementById('voidCancelBtn').addEventListener('click', function () {
+    document.getElementById('voidModal').classList.remove('open');
+  });
+  document.getElementById('voidModal').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('voidModal'))
+      document.getElementById('voidModal').classList.remove('open');
+  });
+
+  document.getElementById('confirmVoidBtn').addEventListener('click', function () {
+    var reason = document.getElementById('voidReason').value.trim();
+    if (!reason) {
+      showToast('Please enter a reason for voiding.', 'error');
+      document.getElementById('voidReason').focus();
+      return;
+    }
+    var btn = document.getElementById('confirmVoidBtn');
+    btn.disabled = true;
+    btn.textContent = 'Voiding...';
+
+    fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'voidPayment',
+        adminToken: adminToken,
+        submissionId: pendingVoidId,
+        reviewNote: reason
+      })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (json) {
+      if (!json.success) throw new Error(json.error || 'Failed to void');
+      document.getElementById('voidModal').classList.remove('open');
+      var card = document.querySelector('.submission-card[data-submission-id="' + pendingVoidId + '"]');
+      if (card) card.remove();
+
+      // Update pending badge count
+      var remaining = document.querySelectorAll('#reviewList .submission-card').length;
+      document.getElementById('pendingBadge').textContent = remaining;
+      if (remaining === 0) {
+        document.getElementById('reviewList').classList.add('hidden');
+        document.getElementById('reviewEmpty').classList.remove('hidden');
+        document.getElementById('approvalsDot').style.display = 'none';
+      }
+      showToast('Payment voided and tenant notified.', 'success');
+    })
+    .catch(function (err) {
+      showToast(err.message || 'Failed to void payment.', 'error');
+    })
+    .finally(function () {
+      btn.disabled = false;
+      btn.textContent = 'Confirm Void';
+    });
+  });
+
+  // ── All submissions tab ──────────────────────────────────────
+
+  var allProofsData = [];
+  var activeFilter  = 'all';
+
+  function loadAllTab() {
+    document.getElementById('allLoading').classList.remove('hidden');
+    document.getElementById('allContent').classList.add('hidden');
+    document.getElementById('allEmpty').classList.add('hidden');
+
+    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getAllProofs')
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        document.getElementById('allLoading').classList.add('hidden');
+        if (!json.success) throw new Error(json.error || 'API error');
+        allProofsData = json.data || [];
+        if (allProofsData.length === 0) {
+          document.getElementById('allEmpty').classList.remove('hidden');
+        } else {
+          document.getElementById('allContent').classList.remove('hidden');
+          renderAllTable(allProofsData);
+        }
+      })
+      .catch(function (err) {
+        document.getElementById('allLoading').classList.add('hidden');
+        showToast(err.message || 'Failed to load submissions.', 'error');
+      });
+  }
+
+  function statusClass(status) {
+    if (!status) return '';
+    var s = status.toLowerCase();
+    if (s === 'reviewed') return 'badge badge--paid';
+    if (s === 'voided') return 'badge badge--overdue';
+    return 'badge badge--pending'; // Auto-Approved / Needs Review
+  }
+
+  function filterMatch(proof, filter) {
+    if (filter === 'all') return true;
+    var s = (proof.Status || '').toLowerCase();
+    if (filter === 'needs-review') return s === 'needs review' || s === 'auto-approved' || s === 'pending';
+    if (filter === 'reviewed') return s === 'reviewed';
+    if (filter === 'voided') return s === 'voided';
+    return true;
+  }
+
+  function renderAllTable(proofs) {
+    var body = document.getElementById('allTableBody');
+    var filtered = proofs.filter(function (p) { return filterMatch(p, activeFilter); });
+    if (filtered.length === 0) {
+      body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">No submissions match this filter.</td></tr>';
+      return;
+    }
+    body.innerHTML = filtered.map(function (proof, i) {
+      var status = proof.Status || 'Auto-Approved';
+      var statusLow = status.toLowerCase();
+      var isReviewable = statusLow !== 'reviewed' && statusLow !== 'voided';
+      var actionHtml = '';
+      if (isReviewable) {
+        var proofJson = esc(JSON.stringify(proof));
+        actionHtml =
+          '<button class="btn btn--outline btn--sm tbl-edit-btn" style="color:var(--accent);border-color:var(--accent);margin-right:4px;" data-submission-id="' + esc(proof.SubmissionID) + '" data-proof="' + proofJson + '">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>'
+          + '<button class="btn btn--danger btn--sm tbl-void-btn" data-submission-id="' + esc(proof.SubmissionID) + '" data-tenant-name="' + esc(proof.TenantName) + '">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>Void</button>';
+      } else {
+        actionHtml = '<button class="btn btn--outline btn--sm tbl-view-btn" data-proof-idx="' + i + '">View</button>';
+      }
+      return '<tr>'
+        + '<td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">' + fmtDate(proof.SubmittedAt) + '</td>'
+        + '<td style="font-weight:600;">' + esc(proof.TenantName) + '</td>'
+        + '<td><span style="font-family:monospace;font-size:11px;background:var(--navy-50);padding:2px 7px;border-radius:4px;">' + esc(proof.UnitNo || proof.Unit || '') + '</span></td>'
+        + '<td style="text-align:right;font-weight:600;white-space:nowrap;">' + peso(proof.AmountPaid) + '</td>'
+        + '<td style="font-family:monospace;font-size:11px;color:var(--text-muted);">' + esc(proof.ReferenceNo || '—') + '</td>'
+        + '<td><span class="' + statusClass(status) + '">' + esc(status) + '</span></td>'
+        + '<td style="white-space:nowrap;">' + actionHtml + '</td>'
+        + '</tr>';
+    }).join('');
+
+    // Bind table action listeners
+    body.querySelectorAll('.tbl-edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var proof = JSON.parse(btn.getAttribute('data-proof'));
+        openEditPanel(proof);
+      });
+    });
+    body.querySelectorAll('.tbl-void-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        pendingVoidId   = btn.getAttribute('data-submission-id');
+        pendingVoidName = btn.getAttribute('data-tenant-name');
+        document.getElementById('voidReason').value = '';
+        document.getElementById('voidModal').classList.add('open');
+      });
+    });
+    body.querySelectorAll('.tbl-view-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var idx = parseInt(btn.getAttribute('data-proof-idx'), 10);
+        var filteredList = allProofsData.filter(function (p) { return filterMatch(p, activeFilter); });
+        if (filteredList[idx]) openDetailPanel(filteredList[idx]);
+      });
+    });
+  }
+
+  // Filter pills
+  document.getElementById('filterPills').addEventListener('click', function (e) {
+    var pill = e.target.closest('.filter-pill');
+    if (!pill) return;
+    document.querySelectorAll('.filter-pill').forEach(function (p) { p.classList.remove('active'); });
+    pill.classList.add('active');
+    activeFilter = pill.getAttribute('data-filter');
+    renderAllTable(allProofsData);
+  });
+
+  // ── Detail panel ─────────────────────────────────────────────
+
+  function openDetailPanel(proof) {
+    var status = proof.Status || 'Auto-Approved';
+    document.getElementById('detailPanelTitle').textContent = esc(proof.TenantName) + ' — ' + esc(status);
+    document.getElementById('detailPanelBody').innerHTML =
+      detailRow('Amount', peso(proof.AmountPaid))
+      + detailRow('Reference', proof.ReferenceNo || '—')
+      + detailRow('Billing Month', proof.BillingMonth || '—')
+      + detailRow('Payment Mode', proof.PaymentMode || '—')
+      + detailRow('Review Note', proof.ReviewNote || '—')
+      + detailRow('Submitted At', fmtDate(proof.SubmittedAt))
+      + detailRow('Reviewed At', proof.ReviewedAt ? fmtDate(proof.ReviewedAt) : '—')
+      + (proof.DriveURL ? '<div style="margin-top:16px;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>' : '');
+    document.getElementById('detailPanel').classList.add('open');
+  }
+
+  function detailRow(label, value) {
+    return '<div class="detail-row"><span class="detail-label">' + esc(label) + '</span><span class="detail-value">' + esc(value) + '</span></div>';
+  }
+
+  document.getElementById('detailPanelClose').addEventListener('click', function () {
+    document.getElementById('detailPanel').classList.remove('open');
+  });
+  document.getElementById('detailPanel').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('detailPanel'))
+      document.getElementById('detailPanel').classList.remove('open');
+  });
+
+  // ── Init ─────────────────────────────────────────────────────
+
+  loadReviewTab();
+
+})();
+</script>
+</body>
+</html>
