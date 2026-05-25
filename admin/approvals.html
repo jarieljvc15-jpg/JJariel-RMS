@@ -54,22 +54,23 @@
       font-family: 'Inter', sans-serif;
     }
 
-    /* ── Submission card ── */
-    .submission-card {
+    /* ── Review card ── */
+    .proof-card {
       background: var(--white);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 16px;
       margin-bottom: 12px;
-      transition: border-color 0.15s;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .submission-card.reviewed {
-      border-left: 3px solid var(--success);
-    }
+    .proof-card:active { border-color: var(--accent); box-shadow: var(--shadow-sm); }
     .card-header-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
     }
     .card-tenant-name {
       font-family: 'Satoshi', 'Inter', sans-serif;
@@ -84,23 +85,21 @@
       border-radius: var(--radius-sm);
       font-size: 11px;
       padding: 2px 8px;
-      margin-left: 8px;
+      margin-left: 6px;
       font-family: 'SF Mono', 'Fira Code', 'Cascadia Mono', monospace;
     }
     .card-time {
       font-family: 'Inter', sans-serif;
-      font-weight: 400;
       font-size: 12px;
       color: var(--text-muted);
       white-space: nowrap;
       flex-shrink: 0;
-      margin-left: 8px;
     }
     .card-amount-row {
       margin-top: 10px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
     .card-amount {
@@ -116,82 +115,48 @@
       padding: 2px 10px;
       font-family: 'SF Mono', 'Fira Code', 'Cascadia Mono', monospace;
       color: var(--text-secondary);
-      margin-left: 4px;
     }
-    .card-reviewed-badge {
-      background: var(--success-bg);
-      color: var(--success);
-      border-radius: var(--radius-pill);
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 10px;
+    .card-tap-hint {
+      margin-top: 10px;
       font-family: 'Inter', sans-serif;
-    }
-    .card-notes {
-      margin-top: 6px;
-      font-style: italic;
-      font-family: 'Inter', sans-serif;
-      font-weight: 400;
       font-size: 12px;
       color: var(--text-muted);
-    }
-    .card-screenshot-link {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       gap: 4px;
-      margin-top: 6px;
-      color: var(--accent);
-      font-family: 'Inter', sans-serif;
-      font-weight: 500;
-      font-size: 13px;
-      text-decoration: none;
     }
-    .card-screenshot-link svg {
-      width: 12px;
-      height: 12px;
+    .card-tap-hint svg {
+      width: 13px;
+      height: 13px;
       stroke: currentColor;
       fill: none;
       stroke-width: 1.75;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
-    .card-actions {
-      margin-top: 14px;
-      display: flex;
-      gap: 8px;
-    }
 
-    /* ── Empty state ── */
-    .empty-state-approvals {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 48px 16px;
-      text-align: center;
+    /* ── All-submissions card ── */
+    .sub-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 10px;
     }
-    .empty-state-approvals svg {
-      width: 40px;
-      height: 40px;
-      stroke: var(--success);
-      fill: none;
-      stroke-width: 1.5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-    .empty-state-approvals-title {
-      font-family: 'Satoshi', 'Inter', sans-serif;
-      font-weight: 700;
-      font-size: 18px;
-      color: var(--success);
-      margin-top: 12px;
-    }
-    .empty-state-approvals-sub {
+    .sub-card.status-approved { border-left: 3px solid var(--success); }
+    .sub-card.status-declined { border-left: 3px solid var(--danger); }
+    .sub-card.status-pending  { border-left: 3px solid var(--warning); }
+    .sub-card-meta {
+      margin-top: 5px;
       font-family: 'Inter', sans-serif;
-      font-weight: 400;
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-muted);
-      margin-top: 4px;
+    }
+    .sub-card-decline {
+      margin-top: 6px;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      color: var(--danger);
     }
 
     /* ── Filter pills ── */
@@ -213,12 +178,9 @@
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
     }
-    .filter-pill.active {
-      background: var(--accent);
-      color: #fff;
-    }
+    .filter-pill.active { background: var(--accent); color: #fff; }
 
-    /* ── Panel overlay ── */
+    /* ── Panel (slide-up) ── */
     .panel-overlay {
       position: fixed;
       inset: 0;
@@ -239,7 +201,7 @@
     }
     .panel-header {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
       padding: 16px 16px 12px;
       border-bottom: 1px solid var(--border);
@@ -250,6 +212,12 @@
       font-weight: 700;
       font-size: 16px;
       color: var(--text-primary);
+    }
+    .panel-sub {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
     }
     .panel-close {
       width: 32px;
@@ -262,6 +230,7 @@
       background: none;
       cursor: pointer;
       color: var(--text-secondary);
+      flex-shrink: 0;
     }
     .panel-close:hover { background: rgba(0,0,0,0.06); }
     .panel-close svg {
@@ -279,60 +248,35 @@
       flex: 1;
     }
 
-    /* ── Edit panel ── */
-    .edit-section-divider {
-      border: none;
-      border-top: 1px solid var(--border);
-      margin: 16px 0;
+    /* ── Proof image ── */
+    .proof-img-wrap {
+      margin-bottom: 16px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--off-white);
     }
-    .edit-section-label {
-      font-family: 'Inter', sans-serif;
-      font-weight: 600;
-      font-size: 11px;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 10px;
+    .proof-img-wrap img {
+      width: 100%;
+      max-height: 260px;
+      object-fit: contain;
+      display: block;
     }
-    .split-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    .split-validation {
-      font-family: 'Inter', sans-serif;
-      font-weight: 500;
-      font-size: 12px;
-      margin-top: 4px;
-    }
-    .split-validation.ok { color: var(--success); }
-    .split-validation.mismatch { color: var(--danger); }
-
-    .mode-pills {
+    .proof-no-img {
+      width: 100%;
+      height: 90px;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius-sm);
       display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .mode-pill {
-      padding: 7px 16px;
-      border-radius: var(--radius-pill);
+      align-items: center;
+      justify-content: center;
       font-family: 'Inter', sans-serif;
-      font-weight: 600;
       font-size: 13px;
-      border: 1.5px solid var(--border);
-      background: none;
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
-    }
-    .mode-pill.active {
-      background: var(--navy-900);
-      color: #fff;
-      border-color: var(--navy-900);
+      color: var(--text-muted);
+      margin-bottom: 16px;
     }
 
-    /* ── Void modal (centered) ── */
+    /* ── Confirm modal ── */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -358,68 +302,44 @@
       font-size: 16px;
       color: var(--text-primary);
     }
-    .modal-subtitle {
+    .modal-sub {
       font-family: 'Inter', sans-serif;
-      font-weight: 400;
       font-size: 13px;
       color: var(--text-muted);
       margin-top: 4px;
     }
 
-    /* ── Detail read-only ── */
-    .detail-row {
+    /* ── Empty / loading ── */
+    .empty-state-approvals {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-      gap: 12px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+      text-align: center;
     }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-label {
-      font-family: 'Inter', sans-serif;
-      font-weight: 500;
-      font-size: 12px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      flex-shrink: 0;
+    .empty-state-approvals svg {
+      width: 40px;
+      height: 40px;
+      stroke: var(--success);
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
-    .detail-value {
+    .empty-icon-muted svg { stroke: var(--text-muted); }
+    .empty-state-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      margin-top: 12px;
+    }
+    .empty-state-sub {
       font-family: 'Inter', sans-serif;
-      font-weight: 600;
       font-size: 13px;
-      color: var(--text-primary);
-      text-align: right;
-    }
-
-    /* ── Table ── */
-    .table-scroll { overflow-x: auto; }
-    .table-scroll table { min-width: 540px; }
-    .table-scroll table th, .table-scroll table td { padding: 10px 12px; }
-    .table-scroll table thead th {
-      font-family: 'Inter', sans-serif;
-      font-weight: 600;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
       color: var(--text-muted);
-      background: var(--off-white);
-      white-space: nowrap;
+      margin-top: 4px;
     }
-    .table-scroll table tbody tr {
-      border-bottom: 1px solid var(--border);
-      transition: background 0.1s;
-    }
-    .table-scroll table tbody tr:last-child { border-bottom: none; }
-    .table-scroll table tbody tr:hover { background: var(--navy-50); }
-    .table-scroll table tbody td {
-      font-size: 13px;
-      color: var(--text-primary);
-      vertical-align: middle;
-    }
-
-    /* ── Loading inline ── */
     .loading-row {
       display: flex;
       align-items: center;
@@ -452,6 +372,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      font-family: 'Inter', sans-serif;
       font-size: 13px;
       font-weight: 500;
       box-shadow: var(--shadow-md);
@@ -476,7 +397,6 @@
 </head>
 <body>
 
-<!-- Auth guard -->
 <script>if (!localStorage.getItem('adminToken')) window.location.href = '../index.html';</script>
 
 <!-- Topbar -->
@@ -490,7 +410,6 @@
 <!-- Page content -->
 <main class="page-content">
 
-  <!-- Tab bar -->
   <div class="tabs" role="tablist">
     <button class="tab-btn active" id="tabReviewBtn" role="tab" aria-selected="true" aria-controls="tab-review">
       Needs Review
@@ -503,70 +422,46 @@
 
   <!-- Tab 1: Needs Review -->
   <div class="tab-pane active" id="tab-review" role="tabpanel">
-
     <div id="reviewLoading" class="loading-row">
       <div class="spinner"></div>
       <span>Loading...</span>
     </div>
-
     <div id="reviewEmpty" class="empty-state-approvals hidden">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
         <polyline points="22 4 12 14.01 9 11.01"/>
       </svg>
-      <div class="empty-state-approvals-title">All caught up!</div>
-      <div class="empty-state-approvals-sub">No payments need review.</div>
+      <div class="empty-state-title" style="color:var(--success);">All caught up!</div>
+      <div class="empty-state-sub">No payments need review.</div>
     </div>
-
     <div id="reviewList" class="hidden"></div>
-
   </div>
 
   <!-- Tab 2: All Submissions -->
   <div class="tab-pane" id="tab-all" role="tabpanel">
-
     <div id="allLoading" class="loading-row hidden">
       <div class="spinner"></div>
       <span>Loading...</span>
     </div>
-
     <div id="allContent" class="hidden">
       <div class="filter-pills" id="filterPills">
         <button class="filter-pill active" data-filter="all">All</button>
-        <button class="filter-pill" data-filter="needs-review">Needs Review</button>
-        <button class="filter-pill" data-filter="reviewed">Reviewed</button>
-        <button class="filter-pill" data-filter="voided">Voided</button>
+        <button class="filter-pill" data-filter="Pending">Pending</button>
+        <button class="filter-pill" data-filter="Approved">Approved</button>
+        <button class="filter-pill" data-filter="Declined">Declined</button>
       </div>
-
-      <div class="table-wrapper">
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Tenant</th>
-                <th>Unit</th>
-                <th style="text-align:right;">Amount</th>
-                <th>Ref</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="allTableBody"></tbody>
-          </table>
-        </div>
-      </div>
+      <div id="allList"></div>
     </div>
-
     <div id="allEmpty" class="empty-state-approvals hidden">
-      <svg viewBox="0 0 24 24" aria-hidden="true" style="stroke:var(--text-muted);">
-        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-      </svg>
-      <div style="font-family:'Satoshi','Inter',sans-serif;font-weight:700;font-size:18px;color:var(--text-muted);margin-top:12px;">No submissions yet</div>
-      <div class="empty-state-approvals-sub">Payment proofs will appear here.</div>
+      <div class="empty-icon-muted">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <div class="empty-state-title" style="color:var(--text-muted);">No submissions yet</div>
+      <div class="empty-state-sub">Payment proofs will appear here.</div>
     </div>
-
   </div>
 
 </main>
@@ -622,98 +517,75 @@
   </div>
 </div>
 
-<!-- Edit Payment slide-up -->
-<div class="panel-overlay" id="editPanel">
-  <div class="panel" role="dialog" aria-label="Edit Payment">
+<!-- Proof review slide-up -->
+<div class="panel-overlay" id="proofPanel">
+  <div class="panel" role="dialog" aria-label="Review payment proof">
     <div class="panel-header">
-      <div class="panel-title" id="editPanelTitle">Edit Payment</div>
-      <button class="panel-close" id="editPanelClose">
+      <div>
+        <div class="panel-title" id="panelTenantName"></div>
+        <div class="panel-sub" id="panelUnit"></div>
+      </div>
+      <button class="panel-close" id="proofPanelClose" aria-label="Close">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
     <div class="panel-body">
 
-      <div class="form-group">
-        <label class="form-label" for="editTotal">TOTAL AMOUNT (&#8369;)</label>
-        <input class="form-input" type="number" id="editTotal" min="0" step="0.01" placeholder="0.00">
+      <div id="proofImgWrap" class="proof-img-wrap hidden">
+        <img id="proofImg" src="" alt="Payment screenshot">
       </div>
-
-      <hr class="edit-section-divider">
-
-      <div class="edit-section-label">Payment Split</div>
-      <div class="split-grid">
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" style="font-size:10px;" for="editRent">RENT &#8369;</label>
-          <input class="form-input" type="number" id="editRent" min="0" step="0.01" placeholder="0.00">
-        </div>
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" style="font-size:10px;" for="editElec">ELECTRIC &#8369;</label>
-          <input class="form-input" type="number" id="editElec" min="0" step="0.01" placeholder="0.00">
-        </div>
-        <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label" style="font-size:10px;" for="editWater">WATER &#8369;</label>
-          <input class="form-input" type="number" id="editWater" min="0" step="0.01" placeholder="0.00">
-        </div>
-      </div>
-      <div class="split-validation ok" id="splitValidation">&#8369;0.00 of &#8369;0.00 allocated</div>
-
-      <hr class="edit-section-divider">
+      <div id="proofNoImg" class="proof-no-img">No image submitted</div>
 
       <div class="form-group">
-        <label class="form-label">PAYMENT MODE</label>
-        <div class="mode-pills">
-          <button class="mode-pill active" id="modeGcash" data-mode="GCash">GCash</button>
-          <button class="mode-pill" id="modeCash" data-mode="Cash">Cash</button>
-          <button class="mode-pill" id="modeBank" data-mode="Bank Transfer">Bank Transfer</button>
-        </div>
+        <label class="form-label" for="panelAmount">AMOUNT (&#8369;)</label>
+        <input class="form-input" type="number" id="panelAmount" min="0" step="0.01" placeholder="0.00">
       </div>
-
-      <div class="form-group" style="margin-top:14px;">
-        <label class="form-label" for="editRef">REFERENCE NO.</label>
-        <input class="form-input" type="text" id="editRef" placeholder="e.g. 123456789">
-      </div>
-
       <div class="form-group">
-        <label class="form-label" for="editMonth">BILLING MONTH</label>
-        <input class="form-input" type="text" id="editMonth" placeholder="YYYY-MM" maxlength="7">
+        <label class="form-label" for="panelRef">REFERENCE NO.</label>
+        <input class="form-input" type="text" id="panelRef" placeholder="e.g. 09123456789">
       </div>
-
       <div class="form-group">
-        <label class="form-label" for="editNote">ADMIN NOTE (OPTIONAL)</label>
-        <textarea class="form-input" id="editNote" rows="2" placeholder="Reason for edit" style="resize:none;"></textarea>
+        <label class="form-label" for="panelNotes">NOTES</label>
+        <textarea class="form-input" id="panelNotes" rows="2" style="resize:none;" placeholder="Optional notes"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="panelMonth">BILLING MONTH</label>
+        <input class="form-input" type="text" id="panelMonth" placeholder="YYYY-MM" maxlength="7">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="panelBillType">BILL TYPE</label>
+        <select class="form-input" id="panelBillType">
+          <option value="Rent">Rent</option>
+          <option value="Electric">Electric</option>
+          <option value="Water">Water</option>
+          <option value="Other">Other</option>
+        </select>
       </div>
 
-      <button class="btn btn--primary btn--full" id="editSaveBtn" style="margin-top:8px;">Save Changes</button>
-      <button class="btn btn--ghost btn--full" id="editCancelBtn" style="margin-top:8px;">Cancel</button>
+      <div id="panelActions">
+        <button class="btn btn--primary btn--full" id="quickApproveBtn">Quick Approve</button>
+        <button class="btn btn--outline btn--full" id="reviewApproveBtn" style="margin-top:8px;">Review &amp; Approve</button>
+        <button class="btn btn--ghost btn--full" id="declineStartBtn" style="margin-top:8px;color:var(--danger);">Decline</button>
+      </div>
+
+      <div id="panelDeclineForm" class="hidden">
+        <div style="font-family:'Inter',sans-serif;font-weight:600;font-size:13px;color:var(--text-primary);margin-bottom:8px;">Reason for declining</div>
+        <textarea class="form-input" id="declineReasonInput" rows="3" style="resize:none;" placeholder="Describe the issue with this payment proof..."></textarea>
+        <button class="btn btn--danger btn--full" id="confirmDeclineBtn" style="margin-top:10px;">Confirm Decline</button>
+        <button class="btn btn--ghost btn--full" id="cancelDeclineBtn" style="margin-top:8px;">Cancel</button>
+      </div>
 
     </div>
   </div>
 </div>
 
-<!-- Void Confirm Modal -->
-<div class="modal-overlay" id="voidModal">
-  <div class="modal-box" role="dialog" aria-label="Void payment confirmation">
-    <div class="modal-title">Void this payment?</div>
-    <div class="modal-subtitle">This will delete the Ledger entry. The tenant will be notified.</div>
-    <div class="form-group" style="margin-top:16px;">
-      <label class="form-label" for="voidReason">REASON (REQUIRED)</label>
-      <textarea class="form-input" id="voidReason" rows="3" placeholder="Explain why this payment is being voided..." style="resize:none;"></textarea>
-    </div>
-    <button class="btn btn--danger btn--full" id="confirmVoidBtn" style="margin-top:4px;">Confirm Void</button>
-    <button class="btn btn--ghost btn--full" id="voidCancelBtn" style="margin-top:8px;">Cancel</button>
-  </div>
-</div>
-
-<!-- Detail slide-up (Reviewed / Voided) -->
-<div class="panel-overlay" id="detailPanel">
-  <div class="panel" role="dialog" aria-label="Submission detail">
-    <div class="panel-header">
-      <div class="panel-title" id="detailPanelTitle">Payment Detail</div>
-      <button class="panel-close" id="detailPanelClose">
-        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="panel-body" id="detailPanelBody"></div>
+<!-- Confirm approve modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box" role="dialog" aria-label="Confirm approval">
+    <div class="modal-title">Post to Ledger?</div>
+    <div class="modal-sub" id="confirmModalSub"></div>
+    <button class="btn btn--primary btn--full" id="confirmApproveBtn" style="margin-top:16px;">Confirm Approve</button>
+    <button class="btn btn--ghost btn--full" id="cancelApproveBtn" style="margin-top:8px;">Cancel</button>
   </div>
 </div>
 
@@ -725,23 +597,21 @@
 (function () {
   'use strict';
 
-  const adminToken = localStorage.getItem('adminToken');
+  var adminToken = localStorage.getItem('adminToken');
 
-  // ── Utility functions ────────────────────────────────────────
+  // ── Utilities ────────────────────────────────────────────────
 
-  function peso(n) {
-    return '₱' + Number(n || 0).toLocaleString('en-PH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+  function pesoHtml(n) {
+    return '&#8369;' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function pesoStr(n) {
+    return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function esc(s) {
     return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function timeAgo(dateStr) {
@@ -752,26 +622,19 @@
     var diffHours = diffMs / 3600000;
     if (diffHours < 1) return 'Just now';
     if (diffHours < 24) return Math.floor(diffHours) + 'h ago';
-    return fmtDate(dateStr);
-  }
-
-  function fmtDate(str) {
-    if (!str) return '';
-    var d = new Date(str);
-    if (isNaN(d.getTime())) return str;
-    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+    var diffDays = Math.floor(diffMs / 86400000);
+    if (diffDays < 7) return diffDays + 'd ago';
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
   }
 
   function showToast(msg, type) {
     var c = document.getElementById('toastContainer');
     var t = document.createElement('div');
-    var isOk = type === 'success';
-    t.className = 'toast alert alert--' + (isOk ? 'success' : 'danger');
-    if (isOk) {
-      t.innerHTML = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>' + esc(msg) + '</span>';
-    } else {
-      t.innerHTML = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>' + esc(msg) + '</span>';
-    }
+    var ok = type === 'success';
+    t.className = 'toast alert alert--' + (ok ? 'success' : 'danger');
+    t.innerHTML = ok
+      ? '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>' + esc(msg) + '</span>'
+      : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>' + esc(msg) + '</span>';
     c.appendChild(t);
     setTimeout(function () { t.remove(); }, 3500);
   }
@@ -779,64 +642,54 @@
   // ── Drawer ───────────────────────────────────────────────────
 
   var drawer = document.getElementById('moreDrawer');
-  document.getElementById('moreBtn').addEventListener('click', function () {
-    drawer.classList.add('open');
-  });
-  drawer.addEventListener('click', function (e) {
-    if (e.target === drawer) drawer.classList.remove('open');
-  });
+  document.getElementById('moreBtn').addEventListener('click', function () { drawer.classList.add('open'); });
+  drawer.addEventListener('click', function (e) { if (e.target === drawer) drawer.classList.remove('open'); });
 
-  // ── Tab switching ────────────────────────────────────────────
+  // ── Tabs ─────────────────────────────────────────────────────
 
   var allTabLoaded = false;
 
-  document.getElementById('tabReviewBtn').addEventListener('click', function () {
-    document.getElementById('tabReviewBtn').classList.add('active');
-    document.getElementById('tabReviewBtn').setAttribute('aria-selected', 'true');
-    document.getElementById('tabAllBtn').classList.remove('active');
-    document.getElementById('tabAllBtn').setAttribute('aria-selected', 'false');
-    document.getElementById('tab-review').classList.add('active');
-    document.getElementById('tab-all').classList.remove('active');
-  });
-
+  document.getElementById('tabReviewBtn').addEventListener('click', function () { setTab('review'); });
   document.getElementById('tabAllBtn').addEventListener('click', function () {
-    document.getElementById('tabAllBtn').classList.add('active');
-    document.getElementById('tabAllBtn').setAttribute('aria-selected', 'true');
-    document.getElementById('tabReviewBtn').classList.remove('active');
-    document.getElementById('tabReviewBtn').setAttribute('aria-selected', 'false');
-    document.getElementById('tab-all').classList.add('active');
-    document.getElementById('tab-review').classList.remove('active');
-    if (!allTabLoaded) {
-      allTabLoaded = true;
-      loadAllTab();
-    }
+    setTab('all');
+    if (!allTabLoaded) { allTabLoaded = true; loadAllTab(); }
   });
 
-  // ── Review tab ───────────────────────────────────────────────
+  function setTab(id) {
+    var isReview = id === 'review';
+    document.getElementById('tabReviewBtn').classList.toggle('active', isReview);
+    document.getElementById('tabReviewBtn').setAttribute('aria-selected', isReview ? 'true' : 'false');
+    document.getElementById('tabAllBtn').classList.toggle('active', !isReview);
+    document.getElementById('tabAllBtn').setAttribute('aria-selected', isReview ? 'false' : 'true');
+    document.getElementById('tab-review').classList.toggle('active', isReview);
+    document.getElementById('tab-all').classList.toggle('active', !isReview);
+  }
+
+  // ── Needs Review tab ─────────────────────────────────────────
+
+  var reviewProofs = [];
 
   function loadReviewTab() {
     document.getElementById('reviewLoading').classList.remove('hidden');
     document.getElementById('reviewEmpty').classList.add('hidden');
     document.getElementById('reviewList').classList.add('hidden');
 
-    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getPendingProofs')
+    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getProofs&status=Pending')
       .then(function (r) { return r.json(); })
       .then(function (json) {
         document.getElementById('reviewLoading').classList.add('hidden');
         if (!json.success) throw new Error(json.error || 'API error');
-        var proofs = json.data || [];
-        var count = proofs.length;
+        reviewProofs = Array.isArray(json.data) ? json.data : [];
+        var count = reviewProofs.length;
         document.getElementById('pendingBadge').textContent = count;
-        if (count > 0) {
-          document.getElementById('approvalsDot').style.display = 'block';
-        }
+        document.getElementById('approvalsDot').style.display = count > 0 ? 'block' : 'none';
         if (count === 0) {
           document.getElementById('reviewEmpty').classList.remove('hidden');
         } else {
           var list = document.getElementById('reviewList');
-          list.innerHTML = proofs.map(renderReviewCard).join('');
+          list.innerHTML = reviewProofs.map(renderReviewCard).join('');
           list.classList.remove('hidden');
-          bindReviewCardListeners(list);
+          bindReviewCards(list);
         }
       })
       .catch(function (err) {
@@ -846,264 +699,212 @@
   }
 
   function renderReviewCard(proof) {
-    var notesHtml = (proof.Notes && proof.Notes.trim())
-      ? '<div class="card-notes">' + esc(proof.Notes) + '</div>'
-      : '';
-    var screenshotHtml = proof.DriveURL
-      ? '<div style="margin-top:6px;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
-      : '';
-    var proofJson = esc(JSON.stringify(proof));
-    return '<div class="submission-card" data-submission-id="' + esc(proof.SubmissionID) + '">'
+    var ref = proof.ReferenceNo || '';
+    return '<div class="proof-card" data-proof-id="' + esc(proof.ProofID) + '" tabindex="0" role="button" aria-label="Review proof from ' + esc(proof.TenantName) + '">'
       + '<div class="card-header-row">'
-      +   '<div style="display:flex;align-items:center;min-width:0;">'
+      +   '<div style="min-width:0;overflow:hidden;">'
       +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
-      +     '<span class="card-unit-badge">' + esc(proof.UnitNo || proof.Unit || '') + '</span>'
+      +     '<span class="card-unit-badge">' + esc(proof.UnitID || '') + '</span>'
       +   '</div>'
       +   '<span class="card-time">' + timeAgo(proof.SubmittedAt) + '</span>'
       + '</div>'
       + '<div class="card-amount-row">'
-      +   '<span class="card-amount">' + peso(proof.AmountPaid) + '</span>'
-      +   (proof.ReferenceNo ? '<span class="card-ref-pill">' + esc(proof.ReferenceNo) + '</span>' : '')
+      +   '<span class="card-amount">' + pesoHtml(proof.Amount) + '</span>'
+      +   (ref ? '<span class="card-ref-pill">' + esc(ref) + '</span>' : '')
+      +   '<span class="badge badge--pending" style="font-size:11px;">Pending</span>'
       + '</div>'
-      + notesHtml
-      + screenshotHtml
-      + '<div class="card-actions">'
-      +   '<button class="btn btn--outline btn--sm edit-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + esc(proof.SubmissionID) + '" data-proof="' + proofJson + '">'
-      +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
-      +     'Edit Payment'
-      +   '</button>'
-      +   '<button class="btn btn--danger btn--sm void-btn" data-submission-id="' + esc(proof.SubmissionID) + '" data-tenant-name="' + esc(proof.TenantName) + '">'
-      +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
-      +     'Void'
-      +   '</button>'
+      + '<div class="card-tap-hint">'
+      +   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+      +   'Tap to review'
       + '</div>'
       + '</div>';
   }
 
-  function bindReviewCardListeners(container) {
-    container.querySelectorAll('.edit-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var proof = JSON.parse(btn.getAttribute('data-proof'));
-        openEditPanel(proof);
+  function bindReviewCards(container) {
+    container.querySelectorAll('.proof-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var id = card.getAttribute('data-proof-id');
+        var proof = reviewProofs.find(function (p) { return String(p.ProofID) === String(id); });
+        if (proof) openProofPanel(proof);
       });
-    });
-    container.querySelectorAll('.void-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        pendingVoidId = btn.getAttribute('data-submission-id');
-        pendingVoidName = btn.getAttribute('data-tenant-name');
-        document.getElementById('voidReason').value = '';
-        document.getElementById('voidModal').classList.add('open');
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
       });
     });
   }
 
-  // ── Edit panel ───────────────────────────────────────────────
-
-  var activeEditSubmissionId = null;
-  var activeEditProof = null;
-
-  function openEditPanel(proof) {
-    activeEditSubmissionId = proof.SubmissionID;
-    activeEditProof = proof;
-
-    var now = new Date();
-    var mm = String(now.getMonth() + 1).padStart(2, '0');
-    var defaultMonth = now.getFullYear() + '-' + mm;
-
-    document.getElementById('editPanelTitle').textContent = 'Edit Payment — ' + (proof.TenantName || '');
-    document.getElementById('editTotal').value = Number(proof.AmountPaid || 0).toFixed(2);
-    document.getElementById('editRent').value  = Number(proof.AmountPaid || 0).toFixed(2);
-    document.getElementById('editElec').value  = '0.00';
-    document.getElementById('editWater').value = '0.00';
-    document.getElementById('editRef').value   = proof.ReferenceNo || '';
-    document.getElementById('editMonth').value = proof.BillingMonth || defaultMonth;
-    document.getElementById('editNote').value  = '';
-
-    // Reset mode pills
-    document.querySelectorAll('.mode-pill').forEach(function (p) {
-      p.classList.remove('active');
-    });
-    document.getElementById('modeGcash').classList.add('active');
-    selectedMode = 'GCash';
-
-    updateSplitValidation();
-    document.getElementById('editPanel').classList.add('open');
-  }
-
-  var selectedMode = 'GCash';
-
-  document.querySelectorAll('.mode-pill').forEach(function (pill) {
-    pill.addEventListener('click', function () {
-      document.querySelectorAll('.mode-pill').forEach(function (p) { p.classList.remove('active'); });
-      pill.classList.add('active');
-      selectedMode = pill.getAttribute('data-mode');
-    });
-  });
-
-  function updateSplitValidation() {
-    var total = parseFloat(document.getElementById('editTotal').value) || 0;
-    var rent  = parseFloat(document.getElementById('editRent').value)  || 0;
-    var elec  = parseFloat(document.getElementById('editElec').value)  || 0;
-    var water = parseFloat(document.getElementById('editWater').value) || 0;
-    var sum   = Math.round((rent + elec + water) * 100) / 100;
-    var tot   = Math.round(total * 100) / 100;
-    var el    = document.getElementById('splitValidation');
-    var saveBtn = document.getElementById('editSaveBtn');
-    if (sum === tot) {
-      el.className = 'split-validation ok';
-      el.textContent = peso(sum) + ' of ' + peso(tot) + ' allocated';
-      saveBtn.disabled = false;
-    } else {
-      el.className = 'split-validation mismatch';
-      el.textContent = peso(sum) + ' of ' + peso(tot) + ' allocated (mismatch)';
-      saveBtn.disabled = true;
+  function removeReviewCard(proofId) {
+    var card = document.querySelector('.proof-card[data-proof-id="' + proofId + '"]');
+    if (card) card.remove();
+    reviewProofs = reviewProofs.filter(function (p) { return String(p.ProofID) !== String(proofId); });
+    var count = document.querySelectorAll('#reviewList .proof-card').length;
+    document.getElementById('pendingBadge').textContent = count;
+    document.getElementById('approvalsDot').style.display = count > 0 ? 'block' : 'none';
+    if (count === 0) {
+      document.getElementById('reviewList').classList.add('hidden');
+      document.getElementById('reviewEmpty').classList.remove('hidden');
     }
   }
 
-  document.getElementById('editTotal').addEventListener('input', function () {
-    var total = parseFloat(this.value) || 0;
-    document.getElementById('editRent').value  = total.toFixed(2);
-    document.getElementById('editElec').value  = '0.00';
-    document.getElementById('editWater').value = '0.00';
-    updateSplitValidation();
-  });
-  document.getElementById('editRent').addEventListener('input', updateSplitValidation);
-  document.getElementById('editElec').addEventListener('input', updateSplitValidation);
-  document.getElementById('editWater').addEventListener('input', updateSplitValidation);
+  // ── Proof slide-up ───────────────────────────────────────────
 
-  document.getElementById('editPanelClose').addEventListener('click', function () {
-    document.getElementById('editPanel').classList.remove('open');
-  });
-  document.getElementById('editCancelBtn').addEventListener('click', function () {
-    document.getElementById('editPanel').classList.remove('open');
-  });
-  document.getElementById('editPanel').addEventListener('click', function (e) {
-    if (e.target === document.getElementById('editPanel'))
-      document.getElementById('editPanel').classList.remove('open');
+  var activeProof = null;
+
+  function openProofPanel(proof) {
+    activeProof = proof;
+
+    document.getElementById('panelTenantName').textContent = proof.TenantName || '';
+    document.getElementById('panelUnit').textContent = proof.UnitID ? 'Unit ' + proof.UnitID : '';
+
+    var imgUrl = proof.ImageUrl || proof.DriveURL || '';
+    if (imgUrl) {
+      document.getElementById('proofImg').src = imgUrl;
+      document.getElementById('proofImgWrap').classList.remove('hidden');
+      document.getElementById('proofNoImg').classList.add('hidden');
+    } else {
+      document.getElementById('proofImgWrap').classList.add('hidden');
+      document.getElementById('proofNoImg').classList.remove('hidden');
+    }
+
+    document.getElementById('panelAmount').value   = Number(proof.Amount || 0).toFixed(2);
+    document.getElementById('panelRef').value      = proof.ReferenceNo || '';
+    document.getElementById('panelNotes').value    = proof.Notes || '';
+    document.getElementById('panelMonth').value    = (proof.BillingMonth || '').substring(0, 7);
+
+    var sel = document.getElementById('panelBillType');
+    sel.value = proof.BillType || 'Rent';
+    if (!sel.value) sel.value = 'Rent';
+
+    showActionButtons();
+    document.getElementById('proofPanel').classList.add('open');
+  }
+
+  function closeProofPanel() {
+    document.getElementById('proofPanel').classList.remove('open');
+    activeProof = null;
+  }
+
+  function showActionButtons() {
+    document.getElementById('panelActions').classList.remove('hidden');
+    document.getElementById('panelDeclineForm').classList.add('hidden');
+    document.getElementById('declineReasonInput').value = '';
+  }
+
+  document.getElementById('proofPanelClose').addEventListener('click', closeProofPanel);
+  document.getElementById('proofPanel').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('proofPanel')) closeProofPanel();
   });
 
-  document.getElementById('editSaveBtn').addEventListener('click', function () {
-    var btn = document.getElementById('editSaveBtn');
-    if (btn.disabled) return;
-    var total = parseFloat(document.getElementById('editTotal').value) || 0;
-    var rent  = parseFloat(document.getElementById('editRent').value)  || 0;
-    var elec  = parseFloat(document.getElementById('editElec').value)  || 0;
-    var water = parseFloat(document.getElementById('editWater').value) || 0;
-    var ref   = document.getElementById('editRef').value.trim();
-    var month = document.getElementById('editMonth').value.trim();
-    var note  = document.getElementById('editNote').value.trim();
+  function buildApprovePayload() {
+    return {
+      action:       'approveProof',
+      adminToken:   adminToken,
+      proofId:      activeProof.ProofID,
+      tenantId:     activeProof.TenantID,
+      amount:       parseFloat(document.getElementById('panelAmount').value) || 0,
+      referenceNo:  document.getElementById('panelRef').value.trim(),
+      notes:        document.getElementById('panelNotes').value.trim(),
+      billingMonth: document.getElementById('panelMonth').value.trim(),
+      billType:     document.getElementById('panelBillType').value
+    };
+  }
 
+  function doApprove(btn) {
+    var origText = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'Saving...';
+    btn.textContent = 'Approving...';
+    var proofId = activeProof.ProofID;
 
     fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'editPayment',
-        adminToken: adminToken,
-        submissionId: activeEditSubmissionId,
-        rentAmount: rent,
-        elecAmount: elec,
-        waterAmount: water,
-        totalAmount: total,
-        paymentMode: selectedMode,
-        referenceNo: ref,
-        billingMonth: month,
-        reviewNote: note
+      body:    JSON.stringify(buildApprovePayload())
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (!json.success) throw new Error(json.error || 'Failed to approve');
+        document.getElementById('confirmModal').classList.remove('open');
+        closeProofPanel();
+        removeReviewCard(proofId);
+        showToast('Payment approved and posted to ledger.', 'success');
       })
-    })
-    .then(function (r) { return r.json(); })
-    .then(function (json) {
-      if (!json.success) throw new Error(json.error || 'Failed to save');
-      document.getElementById('editPanel').classList.remove('open');
+      .catch(function (err) {
+        showToast(err.message || 'Failed to approve payment.', 'error');
+        btn.disabled = false;
+        btn.textContent = origText;
+      });
+  }
 
-      // Mark card as reviewed in DOM
-      var card = document.querySelector('.submission-card[data-submission-id="' + activeEditSubmissionId + '"]');
-      if (card) {
-        card.classList.add('reviewed');
-        var actions = card.querySelector('.card-actions');
-        if (actions) actions.style.display = 'none';
-        var amtRow = card.querySelector('.card-amount-row');
-        if (amtRow) {
-          var badge = document.createElement('span');
-          badge.className = 'card-reviewed-badge';
-          badge.textContent = 'Reviewed';
-          amtRow.appendChild(badge);
-        }
-      }
-      showToast('Payment updated successfully.', 'success');
-    })
-    .catch(function (err) {
-      showToast(err.message || 'Failed to save payment.', 'error');
-    })
-    .finally(function () {
-      btn.disabled = false;
-      btn.textContent = 'Save Changes';
-    });
+  document.getElementById('quickApproveBtn').addEventListener('click', function () {
+    doApprove(this);
   });
 
-  // ── Void flow ────────────────────────────────────────────────
-
-  var pendingVoidId   = null;
-  var pendingVoidName = null;
-
-  document.getElementById('voidCancelBtn').addEventListener('click', function () {
-    document.getElementById('voidModal').classList.remove('open');
-  });
-  document.getElementById('voidModal').addEventListener('click', function (e) {
-    if (e.target === document.getElementById('voidModal'))
-      document.getElementById('voidModal').classList.remove('open');
+  document.getElementById('reviewApproveBtn').addEventListener('click', function () {
+    if (!activeProof) return;
+    var amt  = parseFloat(document.getElementById('panelAmount').value) || 0;
+    var name = activeProof.TenantName || '';
+    document.getElementById('confirmModalSub').textContent = 'Post ' + pesoStr(amt) + ' to ledger for ' + name + '?';
+    document.getElementById('confirmModal').classList.add('open');
   });
 
-  document.getElementById('confirmVoidBtn').addEventListener('click', function () {
-    var reason = document.getElementById('voidReason').value.trim();
+  document.getElementById('confirmApproveBtn').addEventListener('click', function () {
+    doApprove(this);
+  });
+
+  document.getElementById('cancelApproveBtn').addEventListener('click', function () {
+    document.getElementById('confirmModal').classList.remove('open');
+  });
+  document.getElementById('confirmModal').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('confirmModal'))
+      document.getElementById('confirmModal').classList.remove('open');
+  });
+
+  document.getElementById('declineStartBtn').addEventListener('click', function () {
+    document.getElementById('panelActions').classList.add('hidden');
+    document.getElementById('panelDeclineForm').classList.remove('hidden');
+    document.getElementById('declineReasonInput').focus();
+  });
+
+  document.getElementById('cancelDeclineBtn').addEventListener('click', showActionButtons);
+
+  document.getElementById('confirmDeclineBtn').addEventListener('click', function () {
+    var reason = document.getElementById('declineReasonInput').value.trim();
     if (!reason) {
-      showToast('Please enter a reason for voiding.', 'error');
-      document.getElementById('voidReason').focus();
+      showToast('Please enter a reason for declining.', 'error');
+      document.getElementById('declineReasonInput').focus();
       return;
     }
-    var btn = document.getElementById('confirmVoidBtn');
+    var btn    = this;
+    var proof  = activeProof;
     btn.disabled = true;
-    btn.textContent = 'Voiding...';
+    btn.textContent = 'Declining...';
 
     fetch(CONFIG.APPS_SCRIPT_URL, {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'voidPayment',
-        adminToken: adminToken,
-        submissionId: pendingVoidId,
-        reviewNote: reason
+      body:    JSON.stringify({
+        action:        'rejectProof',
+        adminToken:    adminToken,
+        proofId:       proof.ProofID,
+        tenantId:      proof.TenantID,
+        declineReason: reason
       })
     })
-    .then(function (r) { return r.json(); })
-    .then(function (json) {
-      if (!json.success) throw new Error(json.error || 'Failed to void');
-      document.getElementById('voidModal').classList.remove('open');
-      var card = document.querySelector('.submission-card[data-submission-id="' + pendingVoidId + '"]');
-      if (card) card.remove();
-
-      // Update pending badge count
-      var remaining = document.querySelectorAll('#reviewList .submission-card').length;
-      document.getElementById('pendingBadge').textContent = remaining;
-      if (remaining === 0) {
-        document.getElementById('reviewList').classList.add('hidden');
-        document.getElementById('reviewEmpty').classList.remove('hidden');
-        document.getElementById('approvalsDot').style.display = 'none';
-      }
-      showToast('Payment voided and tenant notified.', 'success');
-    })
-    .catch(function (err) {
-      showToast(err.message || 'Failed to void payment.', 'error');
-    })
-    .finally(function () {
-      btn.disabled = false;
-      btn.textContent = 'Confirm Void';
-    });
+      .then(function (r) { return r.json(); })
+      .then(function (json) {
+        if (!json.success) throw new Error(json.error || 'Failed to decline');
+        closeProofPanel();
+        removeReviewCard(proof.ProofID);
+        showToast('Payment declined and tenant notified.', 'success');
+      })
+      .catch(function (err) {
+        showToast(err.message || 'Failed to decline payment.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Confirm Decline';
+      });
   });
 
-  // ── All submissions tab ──────────────────────────────────────
+  // ── All Submissions tab ──────────────────────────────────────
 
   var allProofsData = [];
   var activeFilter  = 'all';
@@ -1113,17 +914,17 @@
     document.getElementById('allContent').classList.add('hidden');
     document.getElementById('allEmpty').classList.add('hidden');
 
-    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getAllProofs')
+    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getProofs')
       .then(function (r) { return r.json(); })
       .then(function (json) {
         document.getElementById('allLoading').classList.add('hidden');
         if (!json.success) throw new Error(json.error || 'API error');
-        allProofsData = json.data || [];
+        allProofsData = Array.isArray(json.data) ? json.data : [];
         if (allProofsData.length === 0) {
           document.getElementById('allEmpty').classList.remove('hidden');
         } else {
           document.getElementById('allContent').classList.remove('hidden');
-          renderAllTable(allProofsData);
+          renderAllList();
         }
       })
       .catch(function (err) {
@@ -1132,120 +933,65 @@
       });
   }
 
-  function statusClass(status) {
-    if (!status) return '';
-    var s = status.toLowerCase();
-    if (s === 'reviewed') return 'badge badge--paid';
-    if (s === 'voided') return 'badge badge--overdue';
-    return 'badge badge--pending'; // Auto-Approved / Needs Review
+  function statusBadgeHtml(status) {
+    var s = (status || '').toLowerCase();
+    if (s === 'approved') return '<span class="badge badge--paid">Approved</span>';
+    if (s === 'declined') return '<span class="badge badge--overdue">Declined</span>';
+    return '<span class="badge badge--pending">Pending</span>';
   }
 
-  function filterMatch(proof, filter) {
-    if (filter === 'all') return true;
-    var s = (proof.Status || '').toLowerCase();
-    if (filter === 'needs-review') return s === 'needs review' || s === 'auto-approved' || s === 'pending';
-    if (filter === 'reviewed') return s === 'reviewed';
-    if (filter === 'voided') return s === 'voided';
-    return true;
+  function renderAllCard(proof) {
+    var status   = proof.Status || 'Pending';
+    var statusL  = status.toLowerCase();
+    var ref      = proof.ReferenceNo || '';
+    var month    = (proof.BillingMonth || '').substring(0, 7);
+    var billType = proof.BillType || '';
+    var decline  = proof.DeclineReason || '';
+    var borderCls = statusL === 'approved' ? 'status-approved'
+                  : statusL === 'declined' ? 'status-declined'
+                  : 'status-pending';
+    var meta = [];
+    if (month)    meta.push(month);
+    if (billType) meta.push(billType);
+
+    return '<div class="sub-card ' + borderCls + '">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+      +   '<div style="min-width:0;">'
+      +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
+      +     '<span class="card-unit-badge">' + esc(proof.UnitID || '') + '</span>'
+      +   '</div>'
+      +   statusBadgeHtml(status)
+      + '</div>'
+      + '<div class="card-amount-row" style="margin-top:8px;">'
+      +   '<span class="card-amount" style="font-size:18px;">' + pesoHtml(proof.Amount) + '</span>'
+      +   (ref ? '<span class="card-ref-pill">' + esc(ref) + '</span>' : '')
+      + '</div>'
+      + (meta.length ? '<div class="sub-card-meta">' + esc(meta.join(' · ')) + '</div>' : '')
+      + (statusL === 'declined' && decline ? '<div class="sub-card-decline">' + esc(decline) + '</div>' : '')
+      + '</div>';
   }
 
-  function renderAllTable(proofs) {
-    var body = document.getElementById('allTableBody');
-    var filtered = proofs.filter(function (p) { return filterMatch(p, activeFilter); });
-    if (filtered.length === 0) {
-      body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">No submissions match this filter.</td></tr>';
+  function renderAllList() {
+    var filtered = activeFilter === 'all'
+      ? allProofsData
+      : allProofsData.filter(function (p) {
+          return (p.Status || '').toLowerCase() === activeFilter.toLowerCase();
+        });
+    var list = document.getElementById('allList');
+    if (!filtered.length) {
+      list.innerHTML = '<div style="text-align:center;font-family:\'Inter\',sans-serif;font-size:13px;color:var(--text-muted);padding:32px 0;">No submissions match this filter.</div>';
       return;
     }
-    body.innerHTML = filtered.map(function (proof, i) {
-      var status = proof.Status || 'Auto-Approved';
-      var statusLow = status.toLowerCase();
-      var isReviewable = statusLow !== 'reviewed' && statusLow !== 'voided';
-      var actionHtml = '';
-      if (isReviewable) {
-        var proofJson = esc(JSON.stringify(proof));
-        actionHtml =
-          '<button class="btn btn--outline btn--sm tbl-edit-btn" style="color:var(--accent);border-color:var(--accent);margin-right:4px;" data-submission-id="' + esc(proof.SubmissionID) + '" data-proof="' + proofJson + '">'
-          + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>'
-          + '<button class="btn btn--danger btn--sm tbl-void-btn" data-submission-id="' + esc(proof.SubmissionID) + '" data-tenant-name="' + esc(proof.TenantName) + '">'
-          + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>Void</button>';
-      } else {
-        actionHtml = '<button class="btn btn--outline btn--sm tbl-view-btn" data-proof-idx="' + i + '">View</button>';
-      }
-      return '<tr>'
-        + '<td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">' + fmtDate(proof.SubmittedAt) + '</td>'
-        + '<td style="font-weight:600;">' + esc(proof.TenantName) + '</td>'
-        + '<td><span style="font-family:monospace;font-size:11px;background:var(--navy-50);padding:2px 7px;border-radius:4px;">' + esc(proof.UnitNo || proof.Unit || '') + '</span></td>'
-        + '<td style="text-align:right;font-weight:600;white-space:nowrap;">' + peso(proof.AmountPaid) + '</td>'
-        + '<td style="font-family:monospace;font-size:11px;color:var(--text-muted);">' + esc(proof.ReferenceNo || '—') + '</td>'
-        + '<td><span class="' + statusClass(status) + '">' + esc(status) + '</span></td>'
-        + '<td style="white-space:nowrap;">' + actionHtml + '</td>'
-        + '</tr>';
-    }).join('');
-
-    // Bind table action listeners
-    body.querySelectorAll('.tbl-edit-btn').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var proof = JSON.parse(btn.getAttribute('data-proof'));
-        openEditPanel(proof);
-      });
-    });
-    body.querySelectorAll('.tbl-void-btn').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        pendingVoidId   = btn.getAttribute('data-submission-id');
-        pendingVoidName = btn.getAttribute('data-tenant-name');
-        document.getElementById('voidReason').value = '';
-        document.getElementById('voidModal').classList.add('open');
-      });
-    });
-    body.querySelectorAll('.tbl-view-btn').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var idx = parseInt(btn.getAttribute('data-proof-idx'), 10);
-        var filteredList = allProofsData.filter(function (p) { return filterMatch(p, activeFilter); });
-        if (filteredList[idx]) openDetailPanel(filteredList[idx]);
-      });
-    });
+    list.innerHTML = filtered.map(renderAllCard).join('');
   }
 
-  // Filter pills
   document.getElementById('filterPills').addEventListener('click', function (e) {
     var pill = e.target.closest('.filter-pill');
     if (!pill) return;
     document.querySelectorAll('.filter-pill').forEach(function (p) { p.classList.remove('active'); });
     pill.classList.add('active');
     activeFilter = pill.getAttribute('data-filter');
-    renderAllTable(allProofsData);
-  });
-
-  // ── Detail panel ─────────────────────────────────────────────
-
-  function openDetailPanel(proof) {
-    var status = proof.Status || 'Auto-Approved';
-    document.getElementById('detailPanelTitle').textContent = esc(proof.TenantName) + ' — ' + esc(status);
-    document.getElementById('detailPanelBody').innerHTML =
-      detailRow('Amount', peso(proof.AmountPaid))
-      + detailRow('Reference', proof.ReferenceNo || '—')
-      + detailRow('Billing Month', proof.BillingMonth || '—')
-      + detailRow('Payment Mode', proof.PaymentMode || '—')
-      + detailRow('Review Note', proof.ReviewNote || '—')
-      + detailRow('Submitted At', fmtDate(proof.SubmittedAt))
-      + detailRow('Reviewed At', proof.ReviewedAt ? fmtDate(proof.ReviewedAt) : '—')
-      + (proof.DriveURL ? '<div style="margin-top:16px;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>' : '');
-    document.getElementById('detailPanel').classList.add('open');
-  }
-
-  function detailRow(label, value) {
-    return '<div class="detail-row"><span class="detail-label">' + esc(label) + '</span><span class="detail-value">' + esc(value) + '</span></div>';
-  }
-
-  document.getElementById('detailPanelClose').addEventListener('click', function () {
-    document.getElementById('detailPanel').classList.remove('open');
-  });
-  document.getElementById('detailPanel').addEventListener('click', function (e) {
-    if (e.target === document.getElementById('detailPanel'))
-      document.getElementById('detailPanel').classList.remove('open');
+    renderAllList();
   });
 
   // ── Init ─────────────────────────────────────────────────────
