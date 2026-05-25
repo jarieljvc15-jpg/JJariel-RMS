@@ -10,6 +10,12 @@
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/style.css">
   <style>
+    .topbar-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 17px;
+      color: #fff;
+    }
     /* Sticky filters */
     .filters-bar {
       position: sticky;
@@ -159,7 +165,7 @@
       th, td { padding: 8px 6px; }
       /* Column widths for mobile: Date(72px) Tenant(auto) Type(56px) Total(72px) */
       th:first-child, td:first-child { width: 72px; }
-      th:nth-child(3), td:nth-child(3) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      th:nth-child(3), td:nth-child(3) { white-space: normal; word-break: break-word; overflow-wrap: break-word; }
     }
     /* Panel */
     .panel-overlay {
