@@ -217,6 +217,28 @@
       margin: 8px 0;
       line-height: 1.5;
     }
+
+    /* ── Inline accordion ───────────────────────────── */
+    .tenant-acc-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 250ms ease;
+    }
+    .tenant-acc-body.open { max-height: 600px; }
+    .tenant-acc-row { background: var(--bg-subtle, #f9fafb); }
+    .tenant-acc-row td { padding: 0 !important; }
+
+    /* Collect button */
+    .collect-btn {
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+
+    /* Muted zero-balance row name */
+    .tenant-name--muted { color: var(--text-secondary); }
   </style>
 </head>
 <body>
@@ -461,8 +483,8 @@
 
   function balanceDisplay(b) {
     if (b > 0) return '<span class="col-amount col-amount--delinquent">' + peso(b) + '</span>';
-    if (b < 0) return '<span class="col-amount" style="color:var(--success);">' + peso(-b) + ' credit</span>';
-    return '<span class="col-amount">' + peso(0) + '</span>';
+    if (b < 0) return '<span class="col-amount" style="color:var(--success);">' + peso(-b) + ' In Credit</span>';
+    return '<span class="col-amount" style="color:var(--text-muted);">—</span>';
   }
 
   // ── More drawer ───────────────────────────────────────────────
@@ -508,6 +530,8 @@
   let activeTenant = null;
   let isEditMode       = false;
   let currentBalanceHtml = '<span class="text-muted">—</span>';
+  let openAccordionId = null;   // track which accordion row is open
+  let accLoaded = {};           // track which accordion bodies have been loaded
 
   // ── Fetch ─────────────────────────────────────────────────────
 
@@ -570,6 +594,8 @@
     }
 
     empty.classList.add('hidden');
+    openAccordionId = null;
+    accLoaded = {};
 
     // We need balances — but getTenants doesn't include them.
     // We'll show balance as "—" and fetch per-tenant on detail open.
@@ -578,23 +604,35 @@
       const moveIn = t.MoveInDate
         ? new Date(t.MoveInDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' })
         : '—';
+      const tid = escHtml(t.TenantID);
 
-      return `<tr data-tenant-id="${escHtml(t.TenantID)}">
-        <td class="col-name">${escHtml(t.Name)}</td>
+      // Accordion body HTML (loaded lazily on first open)
+      const accBody = `<tr class="tenant-acc-row" id="tacc-row-${tid}">
+        <td colspan="5"><div class="tenant-acc-body" id="tacc-${tid}">
+          <div style="padding:16px;">
+            <div id="tacc-content-${tid}"><span class="text-muted" style="font-size:13px;">Loading…</span></div>
+          </div>
+        </div></td>
+      </tr>`;
+
+      const row = `<tr class="tenant-tr" data-tenant-id="${tid}">
+        <td class="col-name tenant-name-cell" data-tenant-id="${tid}">${escHtml(t.Name)}</td>
         <td>${escHtml(unitLabel)}</td>
         <td>${escHtml(moveIn)}</td>
-        <td style="text-align:right;" class="balance-cell" data-tenant-id="${escHtml(t.TenantID)}">
+        <td style="text-align:right;" class="balance-cell" data-tenant-id="${tid}">
           <span class="text-muted">—</span>
         </td>
         <td>${statusBadge(t.Status)}</td>
       </tr>`;
+
+      return row + accBody;
     }).join('');
 
-    // Row tap → detail
-    body.querySelectorAll('tr').forEach(row => {
+    // Row tap → accordion toggle
+    body.querySelectorAll('tr.tenant-tr').forEach(row => {
       row.addEventListener('click', () => {
-        const tenant = tenants.find(t => t.TenantID === row.dataset.tenantId);
-        if (tenant) showTenantDetail(tenant);
+        const tid = row.dataset.tenantId;
+        toggleAccordion(tid);
       });
     });
 
@@ -602,13 +640,205 @@
     tenants.forEach(t => fetchBalance(t.TenantID));
   }
 
+  function toggleAccordion(tid) {
+    // If clicking the already-open accordion, close it
+    if (openAccordionId === tid) {
+      closeAccordion(tid);
+      openAccordionId = null;
+      return;
+    }
+    // Close currently open accordion if any
+    if (openAccordionId) {
+      closeAccordion(openAccordionId);
+    }
+    openAccordionId = tid;
+    openAccordion(tid);
+  }
+
+  function closeAccordion(tid) {
+    const body = document.getElementById('tacc-' + tid);
+    if (body) body.classList.remove('open');
+  }
+
+  function openAccordion(tid) {
+    const body = document.getElementById('tacc-' + tid);
+    if (!body) return;
+    body.classList.add('open');
+    if (!accLoaded[tid]) {
+      accLoaded[tid] = true;
+      const tenant = tenants.find(t => t.TenantID === tid);
+      if (tenant) loadAccordionContent(tenant);
+    }
+  }
+
+  async function loadAccordionContent(tenant) {
+    const tid = tenant.TenantID;
+    const contentEl = document.getElementById('tacc-content-' + tid);
+    if (!contentEl) return;
+
+    activeTenant = tenant;
+
+    const unitLabel    = [tenant.UnitName, tenant.BuildingName].filter(Boolean).join(' — ') || '—';
+    const moveInLabel  = tenant.MoveInDate
+      ? new Date(tenant.MoveInDate).toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' })
+      : '—';
+
+    // Render static tenant info immediately
+    contentEl.innerHTML = `
+      <div class="detail-row"><span class="detail-label">Name</span><span class="detail-value">${escHtml(tenant.Name)}</span></div>
+      <div class="detail-row"><span class="detail-label">Unit</span><span class="detail-value">${escHtml(unitLabel)}</span></div>
+      <div class="detail-row"><span class="detail-label">Contact</span><span class="detail-value">${escHtml(tenant.Contact || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escHtml(tenant.Email || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Move-in</span><span class="detail-value">${escHtml(moveInLabel)}</span></div>
+      <div class="detail-row"><span class="detail-label">Advance</span><span class="detail-value">${escHtml(peso(tenant.Advance))}</span></div>
+      <div class="detail-row"><span class="detail-label">Deposit</span><span class="detail-value">${escHtml(peso(tenant.Deposit))}</span></div>
+      <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(tenant.Status)}</span></div>
+      <div class="detail-row" id="tacc-balance-${escHtml(tid)}"><span class="detail-label">Balance</span><span class="detail-value acc-balance-val"><span class="text-muted">Loading…</span></span></div>
+      <div id="tacc-utils-${escHtml(tid)}"></div>
+      <div class="detail-section-label">Notes</div>
+      <div id="tacc-notes-${escHtml(tid)}"><span class="text-muted" style="font-size:13px;">Loading…</span></div>
+      <div class="detail-actions" style="margin-top:16px;margin-bottom:4px;">
+        <button class="btn btn--accent" onclick="if(window.openQuickPaymentForTenant)window.openQuickPaymentForTenant('${escHtml(tid)}')">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          Quick Payment
+        </button>
+        <button class="btn btn--danger" onclick="triggerMoveOut('${escHtml(tid)}')">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Move Out
+        </button>
+      </div>
+    `;
+
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    const unitId = tenant.UnitID || '';
+
+    try {
+      const [balRes, notesRes, readRes] = await Promise.all([
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBalance&tenantId=' + encodeURIComponent(tid)),
+        fetch(CONFIG.APPS_SCRIPT_URL + '?action=getNotes&tenantId=' + encodeURIComponent(tid)),
+        unitId
+          ? fetch(CONFIG.APPS_SCRIPT_URL + '?action=getReadings&unitId=' + encodeURIComponent(unitId) + '&billingMonth=' + encodeURIComponent(currentMonth))
+          : Promise.resolve(null)
+      ]);
+
+      // Balance
+      const balJson = await balRes.json();
+      const balVal  = balJson.success ? (balJson.data.total || 0) : null;
+      const balHtml = balJson.success ? balanceDisplay(balVal) : '<span class="text-muted">—</span>';
+      const balRow  = document.getElementById('tacc-balance-' + tid);
+      if (balRow) balRow.querySelector('.acc-balance-val').innerHTML = balHtml;
+
+      // Update balance-cell in the main row too
+      const balCell = document.querySelector(`.balance-cell[data-tenant-id="${tid}"]`);
+      if (balCell) {
+        balCell.innerHTML = balJson.success ? buildBalanceCellHtml(balVal, tid) : '<span class="text-muted">—</span>';
+        attachCollectBtn(balCell, tid);
+      }
+
+      // Mute row name if zero balance
+      applyRowMuting(tid, balVal);
+
+      // Notes
+      const notesJson = await notesRes.json();
+      const notesEl   = document.getElementById('tacc-notes-' + tid);
+      if (notesEl) {
+        if (notesJson.success && notesJson.data && notesJson.data.length > 0) {
+          notesEl.innerHTML = notesJson.data.map(n => {
+            const ts = n.Timestamp
+              ? new Date(n.Timestamp).toLocaleString('en-PH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
+              : '—';
+            return `<div class="note-item"><div class="note-timestamp">${escHtml(ts)}</div><div class="note-text">${escHtml(n.Note || n.Content || '')}</div></div>`;
+          }).join('');
+        } else {
+          notesEl.innerHTML = '<div class="notes-empty">No notes yet.</div>';
+        }
+      }
+
+      // Utilities
+      const utilSection = document.getElementById('tacc-utils-' + tid);
+      if (utilSection && readRes) {
+        const readJson = await readRes.json();
+        if (readJson.success && readJson.data && readJson.data.length > 0) {
+          const row = readJson.data[0];
+          const elecKwh     = parseFloat(row.ElecConsumption || 0);
+          const waterCbm    = parseFloat(row.WaterConsumption || 0);
+          const elecCharge  = parseFloat(row.ElecCharge || 0);
+          const waterCharge = parseFloat(row.WaterCharge || 0);
+          utilSection.innerHTML = '<div class="utils-section">'
+            + '<div class="utils-section-title">This Month\'s Utilities</div>'
+            + (elecKwh || elecCharge
+                ? '<div class="utils-breakdown-row"><span class="utils-breakdown-label">Electric ' + escHtml(String(elecKwh)) + ' kWh</span><span class="utils-breakdown-value">' + peso(elecCharge) + '</span></div>'
+                : '')
+            + (waterCbm || waterCharge
+                ? '<div class="utils-breakdown-row"><span class="utils-breakdown-label">Water ' + escHtml(String(waterCbm)) + ' m³</span><span class="utils-breakdown-value">' + peso(waterCharge) + '</span></div>'
+                : '')
+            + '</div>';
+        } else {
+          utilSection.innerHTML = '<div class="utils-section">'
+            + '<div class="utils-section-title">This Month\'s Utilities</div>'
+            + '<div class="utils-amber">No utility reading logged for this month yet</div>'
+            + '</div>';
+        }
+      }
+    } catch (_) {
+      const notesEl = document.getElementById('tacc-notes-' + tid);
+      if (notesEl) notesEl.innerHTML = '<div class="notes-empty">Could not load notes.</div>';
+      const utilSection = document.getElementById('tacc-utils-' + tid);
+      if (utilSection) utilSection.innerHTML = '<div class="utils-section"><div class="utils-section-title">This Month\'s Utilities</div><div class="utils-amber">Could not load utility reading.</div></div>';
+    }
+  }
+
+  // Build the HTML for balance cell (balance display + optional Collect button)
+  function buildBalanceCellHtml(b, tid) {
+    const display = balanceDisplay(b);
+    if (b > 0) {
+      return display + ' <button class="btn btn--accent btn--sm collect-btn" data-tenant-id="' + escHtml(tid) + '">Collect</button>';
+    }
+    return display;
+  }
+
+  function attachCollectBtn(cell, tid) {
+    const btn = cell.querySelector('.collect-btn');
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.openQuickPaymentForTenant) window.openQuickPaymentForTenant(tid);
+      });
+    }
+  }
+
+  function applyRowMuting(tid, balVal) {
+    const nameCell = document.querySelector(`.tenant-name-cell[data-tenant-id="${tid}"]`);
+    if (!nameCell) return;
+    if (balVal === 0 || balVal === null) {
+      nameCell.classList.add('tenant-name--muted');
+    } else {
+      nameCell.classList.remove('tenant-name--muted');
+    }
+  }
+
+  // Called from accordion Move Out button
+  window.triggerMoveOut = function(tid) {
+    const tenant = tenants.find(t => t.TenantID === tid);
+    if (!tenant) return;
+    activeTenant = tenant;
+    document.getElementById('confirmMsg').textContent =
+      'Move out ' + (tenant.Name || 'this tenant') + '? This will mark the tenant as Moved Out and set the unit to Vacant.';
+    document.getElementById('moveOutConfirm').classList.add('open');
+  };
+
   async function fetchBalance(tenantId) {
     try {
       const res  = await fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBalance&tenantId=' + encodeURIComponent(tenantId));
       const json = await res.json();
       if (!json.success) return;
+      const b    = json.data.total || 0;
       const cell = document.querySelector(`.balance-cell[data-tenant-id="${tenantId}"]`);
-      if (cell) cell.innerHTML = balanceDisplay(json.data.total || 0);
+      if (cell) {
+        cell.innerHTML = buildBalanceCellHtml(b, tenantId);
+        attachCollectBtn(cell, tenantId);
+      }
+      applyRowMuting(tenantId, b);
     } catch (_) {}
   }
 
@@ -752,8 +982,8 @@
 
       const utilSection = document.getElementById('detailUtilitiesSection');
       if (utilSection) {
-        if (readingsRes) {
-          const readJson = await readingsRes.json();
+        if (readRes) {
+          const readJson = await readRes.json();
           if (readJson.success && readJson.data && readJson.data.length > 0) {
             const row = readJson.data[0];
             const elecKwh   = parseFloat(row.ElecConsumption || 0);
