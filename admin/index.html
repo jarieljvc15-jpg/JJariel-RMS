@@ -354,7 +354,7 @@
         if (m.rentOwed  > 0) parts.push('Rent '  + peso(m.rentOwed));
         if (m.elecOwed  > 0) parts.push('Elec '  + peso(m.elecOwed));
         if (m.waterOwed > 0) parts.push('Water ' + peso(m.waterOwed));
-        return '<div style="white-space:nowrap;font-size:12px;color:var(--text-secondary);line-height:1.7;">'
+        return '<div style="font-size:12px;color:var(--text-secondary);line-height:1.7;">'
           + escHtml(m.month) + ' — ' + parts.join(' · ')
           + '</div>';
       }).join('');

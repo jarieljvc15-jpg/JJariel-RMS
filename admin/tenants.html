@@ -225,8 +225,6 @@
       transition: max-height 250ms ease;
     }
     .tenant-acc-body.open { max-height: 600px; }
-    .tenant-acc-row { background: var(--bg-subtle, #f9fafb); }
-    .tenant-acc-row td { padding: 0 !important; }
 
     /* Collect button */
     .collect-btn {
@@ -239,6 +237,64 @@
 
     /* Muted zero-balance row name */
     .tenant-name--muted { color: var(--text-secondary); }
+
+    /* Tenant cards */
+    .tenant-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 0;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .tenant-card:active { border-color: var(--accent); }
+    .tenant-card-row1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+    .tenant-card-name {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-primary);
+    }
+    .tenant-card-balance {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      text-align: right;
+      flex-shrink: 0;
+      margin-left: 12px;
+    }
+    .tenant-card-row2 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .tenant-card-unit {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .tenant-card-movein {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .tenant-card-wrap {
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .tenant-card-wrap .tenant-card {
+      border: none;
+      border-radius: 0;
+      margin-bottom: 0;
+    }
+    .tenant-acc-body { background: var(--bg-subtle, #f9fafb); }
   </style>
 </head>
 <body>
@@ -271,26 +327,11 @@
   </div>
 
   <div id="tenantsContent" class="hidden mt-16">
-    <div class="table-wrapper">
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Unit · Building</th>
-              <th>Move-in</th>
-              <th style="text-align:right;">Balance</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="tenantBody"></tbody>
-        </table>
-      </div>
-      <div id="tenantsEmpty" class="empty-state hidden">
-        <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-        <div style="font-weight:600;color:var(--text-secondary);">No active tenants</div>
-        <div>Add your first tenant to get started.</div>
-      </div>
+    <div id="tenantCards"></div>
+    <div id="tenantsEmpty" class="empty-state hidden">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="24" height="24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <div style="font-weight:600;color:var(--text-secondary);">No active tenants</div>
+      <div>Add your first tenant to get started.</div>
     </div>
   </div>
 
@@ -584,11 +625,11 @@
   }
 
   function renderTenants() {
-    const body  = document.getElementById('tenantBody');
+    const cardsEl = document.getElementById('tenantCards');
     const empty = document.getElementById('tenantsEmpty');
 
     if (tenants.length === 0) {
-      body.innerHTML = '';
+      cardsEl.innerHTML = '';
       empty.classList.remove('hidden');
       return;
     }
@@ -597,46 +638,44 @@
     openAccordionId = null;
     accLoaded = {};
 
-    // We need balances — but getTenants doesn't include them.
-    // We'll show balance as "—" and fetch per-tenant on detail open.
-    body.innerHTML = tenants.map(t => {
+    cardsEl.innerHTML = tenants.map(t => {
       const unitLabel = [t.UnitName, t.BuildingName].filter(Boolean).join(' · ');
       const moveIn = t.MoveInDate
         ? new Date(t.MoveInDate).toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' })
         : '—';
       const tid = escHtml(t.TenantID);
 
-      // Accordion body HTML (loaded lazily on first open)
-      const accBody = `<tr class="tenant-acc-row" id="tacc-row-${tid}">
-        <td colspan="5"><div class="tenant-acc-body" id="tacc-${tid}">
-          <div style="padding:16px;">
-            <div id="tacc-content-${tid}"><span class="text-muted" style="font-size:13px;">Loading…</span></div>
-          </div>
-        </div></td>
-      </tr>`;
+      // Accordion body — lazy-loaded on first open
+      const accBody = `<div class="tenant-acc-body" id="tacc-${tid}">
+        <div style="padding:16px;">
+          <div id="tacc-content-${tid}"><span class="text-muted" style="font-size:13px;">Loading…</span></div>
+        </div>
+      </div>`;
 
-      const row = `<tr class="tenant-tr" data-tenant-id="${tid}">
-        <td class="col-name tenant-name-cell" data-tenant-id="${tid}">${escHtml(t.Name)}</td>
-        <td>${escHtml(unitLabel)}</td>
-        <td>${escHtml(moveIn)}</td>
-        <td style="text-align:right;" class="balance-cell" data-tenant-id="${tid}">
-          <span class="text-muted">—</span>
-        </td>
-        <td>${statusBadge(t.Status)}</td>
-      </tr>`;
+      // Card — origin card layout with name class for muting + balance-cell for balance updates
+      const card = `<div class="tenant-card-wrap"><div class="tenant-card" data-tenant-id="${tid}">
+        <div class="tenant-card-row1">
+          <span class="tenant-card-name tenant-name-cell" data-tenant-id="${tid}">${escHtml(t.Name)}</span>
+          <span class="tenant-card-balance balance-cell" data-tenant-id="${tid}"><span class="text-muted">—</span></span>
+        </div>
+        <div class="tenant-card-row2">
+          <span class="tenant-card-unit">${escHtml(unitLabel)}  ${statusBadge(t.Status)}</span>
+        </div>
+        <div class="tenant-card-movein">Move-in: ${escHtml(moveIn)}</div>
+      </div>${accBody}</div>`;
 
-      return row + accBody;
+      return card;
     }).join('');
 
-    // Row tap → accordion toggle
-    body.querySelectorAll('tr.tenant-tr').forEach(row => {
-      row.addEventListener('click', () => {
-        const tid = row.dataset.tenantId;
+    // Card tap → accordion toggle
+    cardsEl.querySelectorAll('.tenant-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.collect-btn')) return;
+        const tid = card.dataset.tenantId;
         toggleAccordion(tid);
       });
     });
 
-    // Fetch balances in background, update cells
     tenants.forEach(t => fetchBalance(t.TenantID));
   }
 
