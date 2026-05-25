@@ -157,6 +157,51 @@
       padding: 3px 8px;
     }
 
+    /* History controls */
+    .hist-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .hist-filter-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .hist-filter-pill {
+      background: var(--navy-50);
+      color: var(--text-secondary);
+      border-radius: var(--radius-pill);
+      padding: 5px 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .hist-filter-pill.active { background: var(--accent); color: #fff; }
+    .hist-month-input {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      background: var(--white);
+      flex-shrink: 0;
+    }
+    .hist-decline-reason {
+      margin-top: 5px;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      color: var(--danger);
+    }
+
     /* Submit form */
     .submit-info {
       background: var(--warning-bg);
@@ -531,78 +576,115 @@
   }
 
   // ── TAB 2: HISTORY ───────────────────────────────────────────
+  var historyMonth  = currentMonth();
+  var historyFilter = 'all';
+  var historyData   = [];
+
   async function loadHistoryTab() {
-    showPaneLoading('history-body');
+    historyLoaded = true;
+    var body = document.getElementById('history-body');
+    body.innerHTML =
+      '<div class="hist-controls">'
+      + '<div class="hist-filter-pills" id="histFilterPills">'
+      +   '<button class="hist-filter-pill active" data-filter="all">All</button>'
+      +   '<button class="hist-filter-pill" data-filter="Bill">Bill</button>'
+      +   '<button class="hist-filter-pill" data-filter="Payment">Payment</button>'
+      +   '<button class="hist-filter-pill" data-filter="Credit">Credit</button>'
+      + '</div>'
+      + '<input class="hist-month-input" type="month" id="histMonthPicker" value="' + esc(historyMonth) + '">'
+      + '</div>'
+      + '<div id="hist-list"></div>';
+
+    document.getElementById('histMonthPicker').addEventListener('change', function () {
+      historyMonth = this.value;
+      fetchHistoryData();
+    });
+    document.getElementById('histFilterPills').addEventListener('click', function (e) {
+      var pill = e.target.closest('.hist-filter-pill');
+      if (!pill) return;
+      document.querySelectorAll('.hist-filter-pill').forEach(function (p) { p.classList.remove('active'); });
+      pill.classList.add('active');
+      historyFilter = pill.getAttribute('data-filter');
+      renderHistoryList();
+    });
+
+    fetchHistoryData();
+  }
+
+  async function fetchHistoryData() {
+    document.getElementById('hist-list').innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px;padding:32px 0;justify-content:center;">'
+      + '<div class="spinner"></div>'
+      + '<span style="font-family:\'Inter\',sans-serif;font-size:13px;color:var(--text-muted);">Loading...</span>'
+      + '</div>';
     try {
-      var ledger = await fetchGet('getLedger', { tenantId: tenantId });
-      historyLoaded = true;
-      renderHistoryTab(ledger);
+      historyData = await fetchGet('getTenantHistory', { tenantId: tenantId, month: historyMonth });
+      if (!Array.isArray(historyData)) historyData = [];
+      renderHistoryList();
     } catch (err) {
-      showPaneError('history-body', err.message);
+      showPaneError('hist-list', err.message);
     }
   }
 
-  function renderHistoryTab(ledger) {
-    var payments = (ledger || []).filter(function (r) { return r.TxnType === 'Payment' && r.Direction === 'Credit'; });
-    var bills    = (ledger || []).filter(function (r) { return r.TxnType === 'Bill'    && r.Direction === 'Debit'; });
+  function renderHistoryList() {
+    var filtered = historyFilter === 'all'
+      ? historyData
+      : historyData.filter(function (r) { return (r.TxnType || '') === historyFilter; });
 
-    var html = '';
+    var list = document.getElementById('hist-list');
+    if (!filtered.length) {
+      list.innerHTML = '<div style="text-align:center;font-family:\'Inter\',sans-serif;font-size:13px;color:var(--text-muted);padding:32px 0;">No transactions yet.</div>';
+      return;
+    }
+    list.innerHTML = filtered.map(renderHistoryCard).join('');
+  }
 
-    // Payments
-    html += '<div class="hist-section-title">Payments</div>';
-    if (!payments.length) {
-      html += '<div style="text-align:center;font-family:\'Inter\',sans-serif;font-size:13px;color:var(--text-muted);padding:16px 0 24px;">No payments recorded yet.</div>';
-    } else {
-      payments.forEach(function (p) {
-        var amt   = parseFloat(p.TotalAmount) || 0;
-        var month = normMonth(p.BillingMonth);
-        html += '<div class="hist-card">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
-        html += '<div>';
-        html += '<div style="font-family:\'Inter\',sans-serif;font-weight:500;font-size:13px;color:var(--text-primary);">' + esc(fmtDate(p.Date)) + '</div>';
-        if (month) html += '<span class="month-pill">' + esc(month) + '</span>';
-        html += '</div>';
-        html += '<div style="font-family:\'Satoshi\',\'Inter\',sans-serif;font-weight:700;font-size:15px;color:var(--success);">₱' + peso(amt) + '</div>';
-        html += '</div>';
-        if (p.PaymentMode || p.ReferenceNo) {
-          html += '<div style="margin-top:6px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;">';
-          if (p.PaymentMode) html += '<span class="mode-pill">' + esc(p.PaymentMode) + '</span>';
-          if (p.ReferenceNo) {
-            html += '<span style="font-family:\'SF Mono\',\'Fira Code\',monospace;font-size:11px;color:var(--text-muted);">' + esc(p.ReferenceNo) + '</span>';
-          }
-          html += '</div>';
-        }
-        html += '</div>';
-      });
+  function proofStatusBadge(status) {
+    if (!status) return '';
+    var s = status.toLowerCase();
+    if (s === 'pending')        return '<span class="badge badge--pending" style="font-size:11px;">Pending</span>';
+    if (s === 'approved')       return '<span class="badge badge--paid" style="font-size:11px;">Approved</span>';
+    if (s === 'declined')       return '<span class="badge badge--overdue" style="font-size:11px;">Declined</span>';
+    if (s === 'admin recorded') return '<span class="badge" style="font-size:11px;background:var(--navy-50);color:var(--navy-500);">Admin Recorded</span>';
+    return '';
+  }
+
+  function renderHistoryCard(row) {
+    var type    = row.TxnType || '';
+    var amount  = parseFloat(row.TotalAmount || row.Amount) || 0;
+    var month   = normMonth(row.BillingMonth);
+    var ref     = row.ReferenceNo || '';
+    var pStatus = row.proofStatus || '';
+    var decline = row.declineReason || '';
+    var billType = row.BillType || '';
+
+    var isPayment = type === 'Payment';
+    var isCredit  = type === 'Credit';
+    var amtColor  = (isPayment || isCredit) ? 'var(--success)' : 'var(--text-primary)';
+
+    var html = '<div class="hist-card">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+    html += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">';
+    html += '<span style="font-family:\'Inter\',sans-serif;font-weight:600;font-size:13px;color:var(--text-primary);">' + esc(type) + '</span>';
+    if (isPayment) html += proofStatusBadge(pStatus);
+    html += '</div>';
+    html += '<div style="font-family:\'Satoshi\',\'Inter\',sans-serif;font-weight:700;font-size:15px;color:' + amtColor + ';flex-shrink:0;">&#8369;' + peso(amount) + '</div>';
+    html += '</div>';
+
+    var meta = [];
+    if (month) meta.push(month);
+    if (isPayment && ref) meta.push('Ref: ' + ref);
+    if (!isPayment && billType) meta.push(billType);
+    if (meta.length) {
+      html += '<div style="margin-top:4px;font-family:\'Inter\',sans-serif;font-size:12px;color:var(--text-muted);">' + esc(meta.join(' · ')) + '</div>';
     }
 
-    // Bills
-    html += '<div class="hist-section-title" style="margin-top:20px;">Bills</div>';
-    if (!bills.length) {
-      html += '<div style="text-align:center;font-family:\'Inter\',sans-serif;font-size:13px;color:var(--text-muted);padding:16px 0 24px;">No bills generated yet.</div>';
-    } else {
-      bills.forEach(function (b) {
-        var total  = parseFloat(b.TotalAmount)  || 0;
-        var rent   = parseFloat(b.RentAmount)   || 0;
-        var elec   = parseFloat(b.ElecAmount)   || 0;
-        var water  = parseFloat(b.WaterAmount)  || 0;
-        var month  = normMonth(b.BillingMonth);
-        html += '<div class="hist-card">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
-        html += '<div>';
-        html += '<div style="font-family:\'Inter\',sans-serif;font-weight:600;font-size:13px;color:var(--text-primary);">' + esc(month) + '</div>';
-        html += '<div style="font-family:\'Inter\',sans-serif;font-weight:400;font-size:11px;color:var(--text-muted);margin-top:2px;">Monthly Bill</div>';
-        html += '</div>';
-        html += '<div style="font-family:\'Satoshi\',\'Inter\',sans-serif;font-weight:700;font-size:15px;color:var(--text-primary);">₱' + peso(total) + '</div>';
-        html += '</div>';
-        html += '<div style="font-family:\'Inter\',sans-serif;font-weight:400;font-size:12px;color:var(--text-muted);margin-top:6px;">';
-        html += 'Rent ₱' + peso(rent) + ' · Elec ₱' + peso(elec) + ' · Water ₱' + peso(water);
-        html += '</div>';
-        html += '</div>';
-      });
+    if (pStatus.toLowerCase() === 'declined' && decline) {
+      html += '<div class="hist-decline-reason">' + esc(decline) + '</div>';
     }
 
-    document.getElementById('history-body').innerHTML = html;
+    html += '</div>';
+    return html;
   }
 
   // ── TAB 3: SUBMIT PAYMENT ────────────────────────────────────
