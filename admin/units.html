@@ -92,6 +92,32 @@
     .detail-value { color: var(--text-primary); text-align: right; }
     /* Combined field toggle */
     #combinedGroup { display: none; }
+
+    /* Inline accordion */
+    .unit-acc-body { max-height:0;overflow:hidden;transition:max-height 250ms ease; }
+    .unit-acc-body.open { max-height:500px; }
+    .unit-acc-row { background:var(--bg-subtle,#f9fafb); }
+    .unit-acc-row td { padding:0 !important; }
+    .unit-acc-inner { padding: 14px 16px 16px; }
+    .unit-acc-inner .detail-row:last-of-type { border-bottom: none; }
+    .unit-acc-actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+    .unit-tr.acc-open { background: var(--navy-50, #f0f4ff); }
+    .unit-tr.acc-open td { border-bottom: none; }
+    .btn--danger-outline {
+      background: none;
+      border: 1px solid var(--danger, #e53935);
+      color: var(--danger, #e53935);
+      border-radius: var(--radius-sm);
+      padding: 0 12px;
+      height: 36px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .btn--danger-outline:hover { background: rgba(229,57,53,0.07); }
   </style>
 </head>
 <body>
@@ -406,12 +432,17 @@
               </thead>
               <tbody>
                 ${group.units.map(u => `
-                  <tr data-unit-id="${escHtml(u.UnitID)}">
+                  <tr class="unit-tr" data-unit-id="${escHtml(u.UnitID)}">
                     <td class="col-mono">${escHtml(u.UnitID)}</td>
                     <td class="col-name">${escHtml(u.UnitName)}</td>
                     <td>${escHtml(u.BillingType)}</td>
                     <td class="col-amount">${peso(u.MonthlyRate)}</td>
                     <td>${statusBadge(u.Status)}</td>
+                  </tr>
+                  <tr class="unit-acc-row" data-acc-for="${escHtml(u.UnitID)}">
+                    <td colspan="5">
+                      <div class="unit-acc-body" id="uacc-${escHtml(u.UnitID)}"></div>
+                    </td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -421,13 +452,105 @@
       </div>
     `).join('');
 
-    // Row tap → detail
-    content.querySelectorAll('tbody tr').forEach(row => {
+    // Row tap → toggle accordion
+    let openUnitId = null;
+
+    content.querySelectorAll('tr.unit-tr').forEach(row => {
       row.addEventListener('click', () => {
-        const unit = units.find(u => u.UnitID === row.dataset.unitId);
-        if (unit) showUnitDetail(unit);
+        const uid = row.dataset.unitId;
+        const accBody = document.getElementById('uacc-' + uid);
+        const unit = units.find(u => u.UnitID === uid);
+        if (!unit || !accBody) return;
+
+        const isOpen = accBody.classList.contains('open');
+
+        // Close any currently open accordion
+        if (openUnitId && openUnitId !== uid) {
+          const prevBody = document.getElementById('uacc-' + openUnitId);
+          if (prevBody) prevBody.classList.remove('open');
+          const prevRow = content.querySelector('tr.unit-tr[data-unit-id="' + openUnitId + '"]');
+          if (prevRow) prevRow.classList.remove('acc-open');
+        }
+
+        if (isOpen) {
+          // Collapse
+          accBody.classList.remove('open');
+          row.classList.remove('acc-open');
+          openUnitId = null;
+        } else {
+          // Lazy-load content on first expand
+          if (!accBody.dataset.loaded) {
+            accBody.innerHTML = buildAccordionContent(unit);
+            accBody.dataset.loaded = '1';
+            wireAccordionEvents(accBody, unit);
+          }
+          accBody.classList.add('open');
+          row.classList.add('acc-open');
+          openUnitId = uid;
+        }
       });
     });
+  }
+
+  function buildAccordionContent(unit) {
+    const rows = [
+      ['Unit ID',       escHtml(unit.UnitID)],
+      ['Unit Name',     escHtml(unit.UnitName)],
+      ['Building',      escHtml(unit.BuildingName)],
+      ['Billing Type',  escHtml(unit.BillingType)],
+      ['Combined With', escHtml(unit.CombinedWith || '—')],
+      ['Monthly Rate',  escHtml(peso(unit.MonthlyRate))],
+      ['Status',        statusBadge(unit.Status)],
+    ];
+
+    const detailRows = rows.map(([label, val]) =>
+      `<div class="detail-row">
+        <span class="detail-label">${escHtml(label)}</span>
+        <span class="detail-value">${val}</span>
+      </div>`
+    ).join('');
+
+    return `<div class="unit-acc-inner">
+      ${detailRows}
+      <div class="unit-acc-actions">
+        <button class="btn btn--outline" data-acc-edit="${escHtml(unit.UnitID)}">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit Unit
+        </button>
+        <button class="btn btn--danger-outline" data-acc-delete="${escHtml(unit.UnitID)}">
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          Delete
+        </button>
+      </div>
+    </div>`;
+  }
+
+  function wireAccordionEvents(accBody, unit) {
+    const editBtn = accBody.querySelector('[data-acc-edit]');
+    if (editBtn) {
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showToast('Edit unit — coming in a future step.', 'error');
+      });
+    }
+
+    const deleteBtn = accBody.querySelector('[data-acc-delete]');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Populate and open the deleteConfirm modal if it exists
+        const modal = document.getElementById('deleteConfirm');
+        if (modal) {
+          const nameEl = modal.querySelector('[data-delete-unit-name]');
+          if (nameEl) nameEl.textContent = unit.UnitName;
+          const idEl = modal.querySelector('[data-delete-unit-id]');
+          if (idEl) idEl.value = unit.UnitID;
+          modal.classList.add('open');
+        } else {
+          showToast('Delete unit — coming in a future step.', 'error');
+        }
+      });
+    }
   }
 
   function showUnitDetail(unit) {
