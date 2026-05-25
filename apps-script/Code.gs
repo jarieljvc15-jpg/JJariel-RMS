@@ -26,6 +26,7 @@ function doGet(e) {
       case "getDashboard":   return respond(getDashboardData());
       case "getPendingProofs": return respond(getPendingProofs(params));
       case "getAllProofs":      return respond(getAllProofs(params));
+      case "checkExistingBill": return respond(checkExistingBill(params));
       case "getConfig":        return respond(getConfig());
       default:
         return respond(null, "Unknown action: " + action);
@@ -85,6 +86,11 @@ function doPost(e) {
         case "updateConfig":   result = updateConfig(body);   break;
         case "editPayment":    result = editPayment(body);    break;
         case "voidPayment":    result = voidPayment(body);    break;
+        case "approveProof":   result = approveProof(body);   break;
+        case "rejectProof":    result = rejectProof(body);    break;
+        case "updateExpense":  result = updateExpense(body);  break;
+        case "deleteExpense":  result = deleteExpense(body);  break;
+        case "bulkLogReadings": result = bulkLogReadings(body); break;
         default:
           result = { message: "Unknown action: " + action };
       }
@@ -719,26 +725,6 @@ function submitPaymentProof(body) {
 
   var cfg          = getConfig();
   var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-  var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
-
-  // Auto-record payment in Ledger
-  var txnId = "PAY-" + tenantId + "-" + Date.now();
-  appendSheetRow(getSheet("Ledger"), {
-    TxnID:        txnId,
-    TenantID:     tenantId,
-    UnitID:       unitId,
-    BillingMonth: currentMonth,
-    TxnType:      "Payment",
-    Direction:    "Credit",
-    RentAmount:   amountPaid,
-    ElecAmount:   0,
-    WaterAmount:  0,
-    TotalAmount:  amountPaid,
-    PaymentMode:  "GCash",
-    ReferenceNo:  referenceNo,
-    Notes:        "Auto-recorded from tenant submission",
-    Date:         today
-  });
 
   var submissionId = "PROOF-" + Date.now();
   appendSheetRow(sheet, {
@@ -752,10 +738,10 @@ function submitPaymentProof(body) {
     DriveURL:     driveUrl,
     Notes:        notes,
     SubmittedAt:  submittedAt,
-    Status:       "Auto-Approved",
+    Status:       "Pending",
     ReviewedAt:   "",
     ReviewNote:   "",
-    LedgerTxnID:  txnId
+    LedgerTxnID:  ""
   });
 
   var adminEmail  = String(cfg["AdminEmail"]  || "").trim();
@@ -764,10 +750,10 @@ function submitPaymentProof(body) {
   if (adminEmail) {
     try {
       GmailApp.sendEmail(adminEmail,
-        "Payment Auto-Recorded — " + unitName,
-        "₱" + amountPaid.toFixed(2) + " from " + tenantName + " (" + unitName + ") has been auto-recorded.\n"
+        "Payment Pending Review — " + unitName,
+        "₱" + amountPaid.toFixed(2) + " from " + tenantName + " (" + unitName + ") is pending review.\n"
           + "Ref: " + referenceNo + ".\n"
-          + "Review and adjust if needed in the Approvals page.");
+          + "Please review and approve or reject in the Approvals page.");
     } catch (e) { Logger.log("submitPaymentProof admin email failed: " + e.message); }
   }
 
@@ -775,7 +761,7 @@ function submitPaymentProof(body) {
     try {
       GmailApp.sendEmail(tenantEmail,
         "Payment Received — " + unitName,
-        "Your payment of ₱" + amountPaid.toFixed(2) + " (Ref: " + referenceNo + ") has been received and recorded.\n"
+        "Your payment of ₱" + amountPaid.toFixed(2) + " (Ref: " + referenceNo + ") has been received and is pending review.\n"
           + "Contact your landlord if you have questions.");
     } catch (e) { Logger.log("submitPaymentProof tenant email failed: " + e.message); }
   }
@@ -1041,7 +1027,7 @@ function getPendingProofs(params) {
   if (!sheet) return { data: [], pendingCount: 0 };
 
   var rows = sheetToJSON(sheet).filter(function(r) {
-    return r["Status"] === "Auto-Approved";
+    return r["Status"] === "Pending" || r["Status"] === "Auto-Approved";
   });
   rows.sort(function(a, b) {
     var ta = String(a["SubmittedAt"] || "");
@@ -1213,6 +1199,253 @@ function voidPayment(body) {
   }
 
   return { voided: true };
+}
+
+function approveProof(body) {
+  var submissionId = String(body.submissionId || "").trim();
+  if (!submissionId) throw new Error("submissionId is required");
+
+  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  if (!proofSheet) throw new Error("PaymentProofs sheet not found");
+
+  var proofData    = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
+  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var tenantIdCol   = proofHeaders.indexOf("TenantID");
+  var unitIdCol     = proofHeaders.indexOf("UnitID");
+  var tenantNameCol = proofHeaders.indexOf("TenantName");
+  var unitNameCol   = proofHeaders.indexOf("UnitName");
+  var amountCol     = proofHeaders.indexOf("AmountPaid");
+  var refNoCol      = proofHeaders.indexOf("ReferenceNo");
+  var notesCol      = proofHeaders.indexOf("Notes");
+  var statusCol     = proofHeaders.indexOf("Status");
+  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
+  var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
+
+  var proofRowNum = -1;
+  var tenantId = "", unitId = "", amountPaid = 0, referenceNo = "", proofNotes = "";
+  for (var i = 1; i < proofData.length; i++) {
+    if (String(proofData[i][sidCol]) === submissionId) {
+      proofRowNum = i + 1;
+      tenantId    = String(proofData[i][tenantIdCol]   || "");
+      unitId      = String(proofData[i][unitIdCol]     || "");
+      amountPaid  = parseFloat(proofData[i][amountCol])  || 0;
+      referenceNo = String(proofData[i][refNoCol]      || "");
+      proofNotes  = String(proofData[i][notesCol]      || "");
+      break;
+    }
+  }
+  if (proofRowNum < 0) throw new Error("Submission not found");
+
+  var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+
+  var txnId = "PAY-" + tenantId + "-" + Date.now();
+  appendSheetRow(getSheet("Ledger"), {
+    TxnID:        txnId,
+    TenantID:     tenantId,
+    UnitID:       unitId,
+    BillingMonth: currentMonth,
+    TxnType:      "Payment",
+    Direction:    "Credit",
+    RentAmount:   amountPaid,
+    ElecAmount:   0,
+    WaterAmount:  0,
+    TotalAmount:  amountPaid,
+    PaymentMode:  "GCash",
+    ReferenceNo:  referenceNo,
+    Notes:        "Approved payment from tenant submission",
+    Date:         today
+  });
+
+  if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Approved");
+  if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
+  if (txnIdCol      >= 0) proofSheet.getRange(proofRowNum, txnIdCol      + 1).setValue(txnId);
+
+  return { message: "approved", submissionId: submissionId };
+}
+
+function rejectProof(body) {
+  var submissionId  = String(body.submissionId  || "").trim();
+  var declineReason = String(body.declineReason || "").trim();
+  if (!submissionId)  throw new Error("submissionId is required");
+  if (!declineReason) throw new Error("declineReason is required");
+
+  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  if (!proofSheet) throw new Error("PaymentProofs sheet not found");
+
+  var proofData    = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
+  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var tenantIdCol   = proofHeaders.indexOf("TenantID");
+  var unitNameCol   = proofHeaders.indexOf("UnitName");
+  var statusCol     = proofHeaders.indexOf("Status");
+  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
+  var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
+
+  var proofRowNum = -1;
+  var tenantId = "", unitName = "";
+  for (var i = 1; i < proofData.length; i++) {
+    if (String(proofData[i][sidCol]) === submissionId) {
+      proofRowNum = i + 1;
+      tenantId    = String(proofData[i][tenantIdCol] || "");
+      unitName    = String(proofData[i][unitNameCol] || "");
+      break;
+    }
+  }
+  if (proofRowNum < 0) throw new Error("Submission not found");
+
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Declined");
+  if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
+  if (reviewNoteCol >= 0) proofSheet.getRange(proofRowNum, reviewNoteCol + 1).setValue(declineReason);
+
+  if (tenantId) {
+    var allTenants  = sheetToJSON(getSheet("Tenants"));
+    var tenant      = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0] || {};
+    var tenantEmail = String(tenant["Email"] || "").trim();
+    if (tenantEmail) {
+      try {
+        var htmlBody = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>'
+          + '<body style="margin:0;padding:0;background-color:#f7f8fc;font-family:Arial,Helvetica,sans-serif;">'
+          + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f7f8fc;padding:24px 0;">'
+          + '<tr><td align="center" style="padding:0 16px;">'
+          + '<table width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">'
+          + '<tr><td style="background-color:#0f172a;padding:24px 32px;border-radius:12px 12px 0 0;">'
+          + '<p style="font-size:20px;font-weight:bold;color:#ffffff;margin:0;">JJ Apartment</p>'
+          + '<p style="font-size:13px;color:#8ea3c8;margin:6px 0 0 0;">Payment Submission Declined</p>'
+          + '</td></tr>'
+          + '<tr><td style="padding:24px 32px;background-color:#ffffff;">'
+          + '<p style="font-size:15px;color:#0f172a;margin:0 0 12px 0;">Your payment submission for <strong>' + unitName + '</strong> has been declined.</p>'
+          + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef2f2;border-radius:8px;">'
+          + '<tr><td style="padding:16px;">'
+          + '<p style="font-size:11px;color:#991b1b;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px 0;">Reason for Decline</p>'
+          + '<p style="font-size:14px;color:#0f172a;margin:0;">' + declineReason + '</p>'
+          + '</td></tr></table>'
+          + '<p style="font-size:13px;color:#475569;margin:16px 0 0 0;">Please contact your landlord to resolve this issue and resubmit your payment proof.</p>'
+          + '</td></tr>'
+          + '<tr><td style="background-color:#0f172a;padding:16px 32px;border-radius:0 0 12px 12px;">'
+          + '<p style="font-size:12px;color:#8ea3c8;margin:0;">JJariel Rentals &middot; JJ Apartment RMS</p>'
+          + '</td></tr>'
+          + '</table></td></tr></table>'
+          + '</body></html>';
+        GmailApp.sendEmail(tenantEmail,
+          "Payment Submission Declined — " + unitName,
+          "Your payment submission for " + unitName + " has been declined.\n\nReason: " + declineReason + "\n\nPlease contact your landlord to resubmit.",
+          { htmlBody: htmlBody });
+      } catch (e) { Logger.log("rejectProof tenant email failed: " + e.message); }
+    }
+  }
+
+  try {
+    GmailApp.sendEmail("JJarielRentals@outlook.com",
+      "[ADMIN COPY] Payment Submission Declined — " + unitName,
+      "Payment submission " + submissionId + " for " + unitName + " (TenantID: " + tenantId + ") has been declined.\n\nReason: " + declineReason);
+  } catch (e) { Logger.log("rejectProof admin copy email failed: " + e.message); }
+
+  return { message: "rejected", submissionId: submissionId };
+}
+
+function updateExpense(body) {
+  var expenseId = String(body.expenseId || "").trim();
+  var date      = String(body.date      || "").trim();
+  var category  = String(body.category  || "").trim();
+  var payee     = String(body.payee     || "").trim();
+  var amount    = parseFloat(body.amount) || 0;
+  var notes     = String(body.notes     || "").trim();
+
+  if (!expenseId) throw new Error("expenseId is required");
+
+  var lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  try {
+    var sheet   = getSheet("Expenses");
+    var data    = sheet.getDataRange().getValues();
+    var headers = data[0].map(function(h) { return String(h).trim(); });
+
+    var eidCol      = headers.indexOf("ExpenseID");
+    var dateCol     = headers.indexOf("Date");
+    var categoryCol = headers.indexOf("Category");
+    var payeeCol    = headers.indexOf("Payee");
+    var amountCol   = headers.indexOf("Amount");
+    var notesCol    = headers.indexOf("Notes");
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eidCol]) === expenseId) {
+        var rowNum = i + 1;
+        if (dateCol     >= 0) sheet.getRange(rowNum, dateCol     + 1).setValue(date);
+        if (categoryCol >= 0) sheet.getRange(rowNum, categoryCol + 1).setValue(category);
+        if (payeeCol    >= 0) sheet.getRange(rowNum, payeeCol    + 1).setValue(payee);
+        if (amountCol   >= 0) sheet.getRange(rowNum, amountCol   + 1).setValue(amount);
+        if (notesCol    >= 0) sheet.getRange(rowNum, notesCol    + 1).setValue(notes);
+        return { message: "updated", expenseId: expenseId };
+      }
+    }
+    throw new Error("Expense not found: " + expenseId);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteExpense(body) {
+  var expenseId = String(body.expenseId || "").trim();
+  if (!expenseId) throw new Error("expenseId is required");
+
+  var lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  try {
+    var sheet   = getSheet("Expenses");
+    var data    = sheet.getDataRange().getValues();
+    var headers = data[0].map(function(h) { return String(h).trim(); });
+    var eidCol  = headers.indexOf("ExpenseID");
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][eidCol]) === expenseId) {
+        sheet.deleteRow(i + 1);
+        return { message: "deleted", expenseId: expenseId };
+      }
+    }
+    throw new Error("Expense not found: " + expenseId);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function checkExistingBill(params) {
+  var tenantId     = String(params.tenantId     || "").trim();
+  var billingMonth = String(params.billingMonth || "").trim();
+  if (!tenantId || !billingMonth) throw new Error("tenantId and billingMonth are required");
+
+  var rows = sheetToJSON(getSheet("Ledger")).filter(function(r) {
+    return String(r["TenantID"])     === tenantId
+        && normMonth(r["BillingMonth"]) === normMonth(billingMonth)
+        && String(r["TxnType"])      === "Bill";
+  });
+
+  if (rows.length === 0) return { exists: false, generatedAt: null };
+  return { exists: true, generatedAt: rows[0]["Date"] || null };
+}
+
+function bulkLogReadings(body) {
+  var readings = body.readings;
+  if (!Array.isArray(readings)) throw new Error("readings array is required");
+
+  var logged = 0;
+  var errors = [];
+
+  for (var i = 0; i < readings.length; i++) {
+    var r = readings[i];
+    try {
+      saveReading(r);
+      logged++;
+    } catch (err) {
+      errors.push({ unitId: r.unitId || "", billingMonth: r.billingMonth || "", error: err.message });
+    }
+  }
+
+  return { logged: logged, errors: errors };
 }
 
 
