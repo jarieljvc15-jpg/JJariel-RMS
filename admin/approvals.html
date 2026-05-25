@@ -472,6 +472,36 @@
     }
 
     .hidden { display: none !important; }
+
+    /* ── Decline inline form ── */
+    .decline-form {
+      margin-top: 10px;
+      padding: 10px;
+      background: var(--danger-bg, #fff1f1);
+      border: 1px solid var(--danger-border, #fecaca);
+      border-radius: var(--radius-sm);
+    }
+    .decline-form textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      resize: none;
+    }
+    .decline-form-error {
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      color: var(--danger);
+      margin-top: 4px;
+    }
+
+    /* ── Accordion (All Submissions) ── */
+    .acc-body { max-height: 0; overflow: hidden; transition: max-height 250ms ease; }
+    .acc-body.open { max-height: 600px; }
+    .acc-row { background: var(--bg-subtle, #f9fafb); }
+    .acc-detail { padding: 12px 14px; }
+    .proof-row { cursor: pointer; }
+    .proof-row.acc-open { background: var(--navy-50); }
   </style>
 </head>
 <body>
@@ -549,7 +579,6 @@
                 <th style="text-align:right;">Amount</th>
                 <th>Ref</th>
                 <th>Status</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody id="allTableBody"></tbody>
@@ -853,7 +882,8 @@
       ? '<div style="margin-top:6px;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
       : '';
     var proofJson = esc(JSON.stringify(proof));
-    return '<div class="submission-card" data-submission-id="' + esc(proof.SubmissionID) + '">'
+    var sid = esc(proof.SubmissionID);
+    return '<div class="submission-card" data-submission-id="' + sid + '">'
       + '<div class="card-header-row">'
       +   '<div style="display:flex;align-items:center;min-width:0;">'
       +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
@@ -868,31 +898,136 @@
       + notesHtml
       + screenshotHtml
       + '<div class="card-actions">'
-      +   '<button class="btn btn--outline btn--sm edit-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + esc(proof.SubmissionID) + '" data-proof="' + proofJson + '">'
+      +   '<button class="btn btn--primary btn--sm quick-approve-btn" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
+      +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>'
+      +     'Quick Approve'
+      +   '</button>'
+      +   '<button class="btn btn--outline btn--sm review-approve-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
       +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
-      +     'Edit Payment'
+      +     'Review &amp; Approve'
       +   '</button>'
-      +   '<button class="btn btn--danger btn--sm void-btn" data-submission-id="' + esc(proof.SubmissionID) + '" data-tenant-name="' + esc(proof.TenantName) + '">'
-      +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
-      +     'Void'
+      +   '<button class="btn btn--outline btn--sm decline-start-btn" style="color:var(--danger);border-color:var(--danger);" data-submission-id="' + sid + '">'
+      +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+      +     'Decline'
       +   '</button>'
+      + '</div>'
+      + '<div class="decline-form hidden" id="decline-form-' + sid + '">'
+      +   '<textarea class="form-input" placeholder="Reason for declining (required)..." rows="2"></textarea>'
+      +   '<div class="decline-form-error hidden"></div>'
+      +   '<div style="display:flex;gap:8px;margin-top:8px;">'
+      +     '<button class="btn btn--danger btn--sm confirm-decline-btn" data-submission-id="' + sid + '">Confirm Decline</button>'
+      +     '<button class="btn btn--outline btn--sm cancel-decline-btn" data-submission-id="' + sid + '">Cancel</button>'
+      +   '</div>'
       + '</div>'
       + '</div>';
   }
 
+  function decrementPendingBadge() {
+    var remaining = document.querySelectorAll('#reviewList .submission-card').length;
+    document.getElementById('pendingBadge').textContent = remaining;
+    if (remaining === 0) {
+      document.getElementById('reviewList').classList.add('hidden');
+      document.getElementById('reviewEmpty').classList.remove('hidden');
+      document.getElementById('approvalsDot').style.display = 'none';
+    }
+  }
+
+  function doQuickApprove(submissionId, card) {
+    var btn = card.querySelector('.quick-approve-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Approving...'; }
+    fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'approveProof',
+        adminToken: adminToken,
+        submissionId: submissionId
+      })
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (json) {
+      if (!json.success) throw new Error(json.error || 'Failed to approve');
+      card.remove();
+      decrementPendingBadge();
+      showToast('Payment approved', 'success');
+    })
+    .catch(function (err) {
+      showToast(err.message || 'Failed to approve payment.', 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Quick Approve'; }
+    });
+  }
+
   function bindReviewCardListeners(container) {
-    container.querySelectorAll('.edit-btn').forEach(function (btn) {
+    container.querySelectorAll('.quick-approve-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var submissionId = btn.getAttribute('data-submission-id');
+        var card = btn.closest('.submission-card');
+        doQuickApprove(submissionId, card);
+      });
+    });
+
+    container.querySelectorAll('.review-approve-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var proof = JSON.parse(btn.getAttribute('data-proof'));
         openEditPanel(proof);
       });
     });
-    container.querySelectorAll('.void-btn').forEach(function (btn) {
+
+    container.querySelectorAll('.decline-start-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        pendingVoidId = btn.getAttribute('data-submission-id');
-        pendingVoidName = btn.getAttribute('data-tenant-name');
-        document.getElementById('voidReason').value = '';
-        document.getElementById('voidModal').classList.add('open');
+        var sid = btn.getAttribute('data-submission-id');
+        var form = document.getElementById('decline-form-' + sid);
+        if (form) form.classList.toggle('hidden');
+      });
+    });
+
+    container.querySelectorAll('.confirm-decline-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var sid = btn.getAttribute('data-submission-id');
+        var form = document.getElementById('decline-form-' + sid);
+        var textarea = form.querySelector('textarea');
+        var errEl = form.querySelector('.decline-form-error');
+        var reason = textarea.value.trim();
+        if (!reason) {
+          errEl.textContent = 'Please enter a decline reason';
+          errEl.classList.remove('hidden');
+          textarea.focus();
+          return;
+        }
+        errEl.classList.add('hidden');
+        btn.disabled = true;
+        btn.textContent = 'Declining...';
+        fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'rejectProof',
+            adminToken: adminToken,
+            submissionId: sid,
+            declineReason: reason
+          })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (json) {
+          if (!json.success) throw new Error(json.error || 'Failed to decline');
+          var card = document.querySelector('.submission-card[data-submission-id="' + sid + '"]');
+          if (card) card.remove();
+          decrementPendingBadge();
+          showToast('Submission declined', 'success');
+        })
+        .catch(function (err) {
+          showToast(err.message || 'Failed to decline submission.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Confirm Decline';
+        });
+      });
+    });
+
+    container.querySelectorAll('.cancel-decline-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var sid = btn.getAttribute('data-submission-id');
+        var form = document.getElementById('decline-form-' + sid);
+        if (form) form.classList.add('hidden');
       });
     });
   }
@@ -996,43 +1131,50 @@
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
+    // If proof already has a LedgerTxnID it is Auto-Approved; use editPayment.
+    // Otherwise it is a new Pending proof: use approveProof with split amounts.
+    var hasLedger = activeEditProof && activeEditProof.LedgerTxnID;
+    var payload = hasLedger
+      ? {
+          action: 'editPayment',
+          adminToken: adminToken,
+          submissionId: activeEditSubmissionId,
+          rentAmount: rent,
+          elecAmount: elec,
+          waterAmount: water,
+          totalAmount: total,
+          paymentMode: selectedMode,
+          referenceNo: ref,
+          billingMonth: month,
+          reviewNote: note
+        }
+      : {
+          action: 'approveProof',
+          adminToken: adminToken,
+          submissionId: activeEditSubmissionId,
+          rentAmount: rent,
+          elecAmount: elec,
+          waterAmount: water,
+          billingMonth: month,
+          referenceNo: ref,
+          paymentMode: selectedMode
+        };
+
     fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action: 'editPayment',
-        adminToken: adminToken,
-        submissionId: activeEditSubmissionId,
-        rentAmount: rent,
-        elecAmount: elec,
-        waterAmount: water,
-        totalAmount: total,
-        paymentMode: selectedMode,
-        referenceNo: ref,
-        billingMonth: month,
-        reviewNote: note
-      })
+      body: JSON.stringify(payload)
     })
     .then(function (r) { return r.json(); })
     .then(function (json) {
       if (!json.success) throw new Error(json.error || 'Failed to save');
       document.getElementById('editPanel').classList.remove('open');
 
-      // Mark card as reviewed in DOM
+      // Remove card from Needs Review list and decrement badge
       var card = document.querySelector('.submission-card[data-submission-id="' + activeEditSubmissionId + '"]');
-      if (card) {
-        card.classList.add('reviewed');
-        var actions = card.querySelector('.card-actions');
-        if (actions) actions.style.display = 'none';
-        var amtRow = card.querySelector('.card-amount-row');
-        if (amtRow) {
-          var badge = document.createElement('span');
-          badge.className = 'card-reviewed-badge';
-          badge.textContent = 'Reviewed';
-          amtRow.appendChild(badge);
-        }
-      }
-      showToast('Payment updated successfully.', 'success');
+      if (card) card.remove();
+      decrementPendingBadge();
+      showToast('Payment approved successfully.', 'success');
     })
     .catch(function (err) {
       showToast(err.message || 'Failed to save payment.', 'error');
@@ -1135,54 +1277,113 @@
   function statusClass(status) {
     if (!status) return '';
     var s = status.toLowerCase();
-    if (s === 'reviewed') return 'badge badge--paid';
-    if (s === 'voided') return 'badge badge--overdue';
-    return 'badge badge--pending'; // Auto-Approved / Needs Review
+    if (s === 'reviewed' || s === 'approved') return 'badge badge--paid';
+    if (s === 'voided' || s === 'declined') return 'badge badge--overdue';
+    return 'badge badge--pending'; // Auto-Approved / Needs Review / Pending
   }
 
   function filterMatch(proof, filter) {
     if (filter === 'all') return true;
     var s = (proof.Status || '').toLowerCase();
     if (filter === 'needs-review') return s === 'needs review' || s === 'auto-approved' || s === 'pending';
-    if (filter === 'reviewed') return s === 'reviewed';
-    if (filter === 'voided') return s === 'voided';
+    if (filter === 'reviewed') return s === 'reviewed' || s === 'approved';
+    if (filter === 'voided') return s === 'voided' || s === 'declined';
     return true;
+  }
+
+  var openAccIdx = -1;
+
+  function buildAccDetail(proof) {
+    var status = proof.Status || 'Auto-Approved';
+    var statusLow = status.toLowerCase();
+    var isReviewable = statusLow !== 'reviewed' && statusLow !== 'voided'
+                    && statusLow !== 'approved' && statusLow !== 'declined';
+    var html = '<div class="acc-detail">'
+      + detailRow('Amount', peso(proof.AmountPaid))
+      + detailRow('Reference', proof.ReferenceNo || '—')
+      + detailRow('Billing Month', proof.BillingMonth || '—')
+      + detailRow('Payment Mode', proof.PaymentMode || '—')
+      + detailRow('Status', status)
+      + detailRow('Submitted At', fmtDate(proof.SubmittedAt))
+      + detailRow('Reviewed At', proof.ReviewedAt ? fmtDate(proof.ReviewedAt) : '—')
+      + detailRow('Review Note', proof.ReviewNote || '—');
+    if (proof.DriveURL) {
+      html += '<div style="padding:10px 0;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>';
+    }
+    if (isReviewable) {
+      var proofJson = esc(JSON.stringify(proof));
+      var sid = esc(proof.SubmissionID);
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;">'
+        + '<button class="btn btn--outline btn--sm tbl-edit-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
+        + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>'
+        + '<button class="btn btn--danger btn--sm tbl-void-btn" data-submission-id="' + sid + '" data-tenant-name="' + esc(proof.TenantName) + '">'
+        + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>Void</button>'
+        + '</div>';
+    }
+    html += '</div>';
+    return html;
   }
 
   function renderAllTable(proofs) {
     var body = document.getElementById('allTableBody');
+    openAccIdx = -1;
     var filtered = proofs.filter(function (p) { return filterMatch(p, activeFilter); });
     if (filtered.length === 0) {
-      body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">No submissions match this filter.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">No submissions match this filter.</td></tr>';
       return;
     }
     body.innerHTML = filtered.map(function (proof, i) {
       var status = proof.Status || 'Auto-Approved';
-      var statusLow = status.toLowerCase();
-      var isReviewable = statusLow !== 'reviewed' && statusLow !== 'voided';
-      var actionHtml = '';
-      if (isReviewable) {
-        var proofJson = esc(JSON.stringify(proof));
-        actionHtml =
-          '<button class="btn btn--outline btn--sm tbl-edit-btn" style="color:var(--accent);border-color:var(--accent);margin-right:4px;" data-submission-id="' + esc(proof.SubmissionID) + '" data-proof="' + proofJson + '">'
-          + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>'
-          + '<button class="btn btn--danger btn--sm tbl-void-btn" data-submission-id="' + esc(proof.SubmissionID) + '" data-tenant-name="' + esc(proof.TenantName) + '">'
-          + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>Void</button>';
-      } else {
-        actionHtml = '<button class="btn btn--outline btn--sm tbl-view-btn" data-proof-idx="' + i + '">View</button>';
-      }
-      return '<tr>'
+      var rowHtml = '<tr class="proof-row" data-idx="' + i + '">'
         + '<td style="white-space:nowrap;color:var(--text-muted);font-size:12px;">' + fmtDate(proof.SubmittedAt) + '</td>'
         + '<td style="font-weight:600;">' + esc(proof.TenantName) + '</td>'
         + '<td><span style="font-family:monospace;font-size:11px;background:var(--navy-50);padding:2px 7px;border-radius:4px;">' + esc(proof.UnitNo || proof.Unit || '') + '</span></td>'
         + '<td style="text-align:right;font-weight:600;white-space:nowrap;">' + peso(proof.AmountPaid) + '</td>'
         + '<td style="font-family:monospace;font-size:11px;color:var(--text-muted);">' + esc(proof.ReferenceNo || '—') + '</td>'
         + '<td><span class="' + statusClass(status) + '">' + esc(status) + '</span></td>'
-        + '<td style="white-space:nowrap;">' + actionHtml + '</td>'
         + '</tr>';
+      var accHtml = '<tr class="acc-row hidden" data-acc-idx="' + i + '"><td colspan="6" style="padding:0;"><div class="acc-body" id="acc-body-' + i + '">'
+        + buildAccDetail(proof)
+        + '</div></td></tr>';
+      return rowHtml + accHtml;
     }).join('');
 
-    // Bind table action listeners
+    // Bind row click for accordion toggle
+    body.querySelectorAll('.proof-row').forEach(function (row) {
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('button') || e.target.closest('a')) return;
+        var idx = parseInt(row.getAttribute('data-idx'), 10);
+        var accRow = body.querySelector('.acc-row[data-acc-idx="' + idx + '"]');
+        var accBody = document.getElementById('acc-body-' + idx);
+
+        if (openAccIdx === idx) {
+          // Collapse
+          row.classList.remove('acc-open');
+          accBody.classList.remove('open');
+          accRow.classList.add('hidden');
+          openAccIdx = -1;
+        } else {
+          // Collapse previous
+          if (openAccIdx >= 0) {
+            var prevRow = body.querySelector('.proof-row[data-idx="' + openAccIdx + '"]');
+            var prevAccRow = body.querySelector('.acc-row[data-acc-idx="' + openAccIdx + '"]');
+            var prevBody = document.getElementById('acc-body-' + openAccIdx);
+            if (prevRow) prevRow.classList.remove('acc-open');
+            if (prevBody) prevBody.classList.remove('open');
+            if (prevAccRow) prevAccRow.classList.add('hidden');
+          }
+          // Expand new
+          row.classList.add('acc-open');
+          accRow.classList.remove('hidden');
+          // Force reflow then add open class for transition
+          accBody.getBoundingClientRect();
+          accBody.classList.add('open');
+          openAccIdx = idx;
+        }
+      });
+    });
+
+    // Bind action buttons inside accordions
     body.querySelectorAll('.tbl-edit-btn').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -1197,14 +1398,6 @@
         pendingVoidName = btn.getAttribute('data-tenant-name');
         document.getElementById('voidReason').value = '';
         document.getElementById('voidModal').classList.add('open');
-      });
-    });
-    body.querySelectorAll('.tbl-view-btn').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var idx = parseInt(btn.getAttribute('data-proof-idx'), 10);
-        var filteredList = allProofsData.filter(function (p) { return filterMatch(p, activeFilter); });
-        if (filteredList[idx]) openDetailPanel(filteredList[idx]);
       });
     });
   }
