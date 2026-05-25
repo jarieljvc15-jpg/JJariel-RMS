@@ -26,6 +26,7 @@ function doGet(e) {
       case "getDashboard":   return respond(getDashboardData());
       case "getPendingProofs": return respond(getPendingProofs(params));
       case "getAllProofs":      return respond(getAllProofs(params));
+      case "getProofs":        return respond(getProofs(params));
       case "getConfig":        return respond(getConfig());
       default:
         return respond(null, "Unknown action: " + action);
@@ -85,6 +86,8 @@ function doPost(e) {
         case "updateConfig":   result = updateConfig(body);   break;
         case "editPayment":    result = editPayment(body);    break;
         case "voidPayment":    result = voidPayment(body);    break;
+        case "rejectProof":    result = rejectProof(body);    break;
+        case "approveProof":   result = approveProof(body);   break;
         default:
           result = { message: "Unknown action: " + action };
       }
@@ -1066,6 +1069,185 @@ function getAllProofs(params) {
     return ta < tb ? 1 : ta > tb ? -1 : 0;
   });
   return rows;
+}
+
+function getProofs(params) {
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName("PaymentProofs");
+  if (!sheet) return [];
+
+  var rows = sheetToJSON(sheet);
+  rows = rows.map(function(r) {
+    return {
+      ProofID:      String(r["SubmissionID"] || r["ProofID"] || ""),
+      TenantID:     String(r["TenantID"]     || ""),
+      TenantName:   String(r["TenantName"]   || ""),
+      UnitID:       String(r["UnitID"]       || ""),
+      UnitName:     String(r["UnitName"]     || ""),
+      Amount:       parseFloat(r["AmountPaid"] || r["Amount"] || 0),
+      ReferenceNo:  String(r["ReferenceNo"]  || ""),
+      Notes:        String(r["Notes"]        || ""),
+      BillingMonth: String(r["BillingMonth"] || ""),
+      BillType:     String(r["BillType"]     || "Rent"),
+      ImageUrl:     String(r["DriveURL"]     || r["ImageUrl"] || ""),
+      Status:       String(r["Status"]       || ""),
+      SubmittedAt:  String(r["SubmittedAt"]  || ""),
+      ReviewedAt:   String(r["ReviewedAt"]   || ""),
+      ReviewNote:   String(r["ReviewNote"]   || ""),
+      LedgerTxnID:  String(r["LedgerTxnID"]  || "")
+    };
+  });
+
+  if (params && params.status) {
+    rows = rows.filter(function(r) { return r["Status"] === params.status; });
+  }
+  rows.sort(function(a, b) {
+    var ta = String(a["SubmittedAt"] || "");
+    var tb = String(b["SubmittedAt"] || "");
+    return ta < tb ? 1 : ta > tb ? -1 : 0;
+  });
+  return rows;
+}
+
+function rejectProof(body) {
+  var proofId    = String(body.proofId    || body.submissionId || "").trim();
+  var reviewNote = String(body.reviewNote || "").trim();
+  if (!proofId) throw new Error("proofId is required");
+
+  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  if (!proofSheet) throw new Error("PaymentProofs sheet not found");
+
+  var proofData    = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
+  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
+  var statusCol     = proofHeaders.indexOf("Status");
+  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
+  var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
+
+  var proofRowNum = -1;
+  var ledgerTxnId = "";
+  for (var i = 1; i < proofData.length; i++) {
+    if (String(proofData[i][sidCol]) === proofId) {
+      proofRowNum = i + 1;
+      ledgerTxnId = String(proofData[i][txnIdCol] || "");
+      break;
+    }
+  }
+  if (proofRowNum < 0) throw new Error("Proof not found");
+
+  if (ledgerTxnId) {
+    var ledgerSheet = getSheet("Ledger");
+    var ledgerData  = ledgerSheet.getDataRange().getValues();
+    var lHeaders    = ledgerData[0].map(function(h) { return String(h).trim(); });
+    var lTxnCol     = lHeaders.indexOf("TxnID");
+    for (var j = ledgerData.length - 1; j >= 1; j--) {
+      if (String(ledgerData[j][lTxnCol]) === ledgerTxnId) {
+        ledgerSheet.deleteRow(j + 1);
+        break;
+      }
+    }
+  }
+
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Rejected");
+  if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
+  if (reviewNoteCol >= 0) proofSheet.getRange(proofRowNum, reviewNoteCol + 1).setValue(reviewNote);
+
+  return { rejected: true };
+}
+
+function approveProof(body) {
+  var proofId      = String(body.proofId    || body.submissionId || "").trim();
+  var reviewNote   = String(body.reviewNote || "").trim();
+  if (!proofId) throw new Error("proofId is required");
+
+  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  if (!proofSheet) throw new Error("PaymentProofs sheet not found");
+
+  var proofData    = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
+  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var tenantIdCol   = proofHeaders.indexOf("TenantID");
+  var unitIdCol     = proofHeaders.indexOf("UnitID");
+  var statusCol     = proofHeaders.indexOf("Status");
+  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
+  var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
+  var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
+
+  var proofRowNum   = -1;
+  var tenantId      = "";
+  var unitId        = "";
+  var existingTxnId = "";
+  for (var i = 1; i < proofData.length; i++) {
+    if (String(proofData[i][sidCol]) === proofId) {
+      proofRowNum   = i + 1;
+      tenantId      = String(proofData[i][tenantIdCol] || "");
+      unitId        = String(proofData[i][unitIdCol]   || "");
+      existingTxnId = String(proofData[i][txnIdCol]    || "");
+      break;
+    }
+  }
+  if (proofRowNum < 0) throw new Error("Proof not found");
+
+  var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+  var amount       = parseFloat(body.amount) || 0;
+  var referenceNo  = String(body.referenceNo  || "").trim();
+  var billingMonth = String(body.billingMonth || currentMonth).trim();
+
+  if (existingTxnId) {
+    var ledgerSheet   = getSheet("Ledger");
+    var ledgerData    = ledgerSheet.getDataRange().getValues();
+    var lHeaders      = ledgerData[0].map(function(h) { return String(h).trim(); });
+    var lTxnCol       = lHeaders.indexOf("TxnID");
+    var lRentCol      = lHeaders.indexOf("RentAmount");
+    var lTotalCol     = lHeaders.indexOf("TotalAmount");
+    var lMonthCol     = lHeaders.indexOf("BillingMonth");
+    var lRefCol       = lHeaders.indexOf("ReferenceNo");
+    var lNotesCol     = lHeaders.indexOf("Notes");
+    for (var j = 1; j < ledgerData.length; j++) {
+      if (String(ledgerData[j][lTxnCol]) === existingTxnId) {
+        var lRow = j + 1;
+        if (amount > 0 && lRentCol  >= 0) ledgerSheet.getRange(lRow, lRentCol  + 1).setValue(amount);
+        if (amount > 0 && lTotalCol >= 0) ledgerSheet.getRange(lRow, lTotalCol + 1).setValue(amount);
+        if (billingMonth && lMonthCol >= 0) ledgerSheet.getRange(lRow, lMonthCol + 1).setValue(billingMonth);
+        if (referenceNo  && lRefCol   >= 0) ledgerSheet.getRange(lRow, lRefCol   + 1).setValue(referenceNo);
+        if (lNotesCol >= 0) {
+          var n = "Approved by admin" + (reviewNote ? ". " + reviewNote : "");
+          ledgerSheet.getRange(lRow, lNotesCol + 1).setValue(n);
+        }
+        break;
+      }
+    }
+  } else {
+    var txnId = "PAY-" + tenantId + "-" + Date.now();
+    appendSheetRow(getSheet("Ledger"), {
+      TxnID:        txnId,
+      TenantID:     tenantId,
+      UnitID:       unitId,
+      BillingMonth: billingMonth,
+      TxnType:      "Payment",
+      Direction:    "Credit",
+      RentAmount:   amount,
+      ElecAmount:   0,
+      WaterAmount:  0,
+      TotalAmount:  amount,
+      PaymentMode:  String(body.paymentMode || "GCash"),
+      ReferenceNo:  referenceNo,
+      Notes:        "Approved by admin from proof submission" + (reviewNote ? ". " + reviewNote : ""),
+      Date:         today
+    });
+    if (txnIdCol >= 0) proofSheet.getRange(proofRowNum, txnIdCol + 1).setValue(txnId);
+  }
+
+  if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Approved");
+  if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
+  if (reviewNoteCol >= 0) proofSheet.getRange(proofRowNum, reviewNoteCol + 1).setValue(reviewNote);
+
+  return { approved: true };
 }
 
 function editPayment(body) {
