@@ -78,8 +78,8 @@
       vertical-align: top;
     }
     tr:last-child td { border-bottom: none; }
-    tbody tr { cursor: pointer; }
-    tbody tr:hover td { background: var(--navy-50); }
+    tbody tr.expense-tr { cursor: pointer; }
+    tbody tr.expense-tr:hover td { background: var(--navy-50); }
     .col-amount-right {
       text-align: right;
       font-family: 'Satoshi', 'Inter', sans-serif;
@@ -151,6 +151,71 @@
       font-size: 20px;
       color: var(--text-primary);
       margin-bottom: 16px;
+    }
+    /* 3-dot menu */
+    .expense-dot-btn { background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:6px;color:var(--text-secondary); }
+    .expense-dot-btn:hover { background:var(--bg-subtle,#f3f4f6); }
+    .expense-dot-menu { position:absolute;right:8px;background:var(--white,#fff);border:1px solid var(--border,#e5e7eb);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:50;min-width:120px; }
+    .expense-dot-menu button { display:block;width:100%;text-align:left;padding:10px 14px;background:none;border:none;cursor:pointer;font-size:14px;color:var(--text-primary,#111827); }
+    .expense-dot-menu button:hover { background:var(--bg-subtle,#f3f4f6); }
+    .expense-dot-menu button.delete-opt { color:var(--danger,#ef4444); }
+    .expense-dot-wrap { position:relative;display:inline-block; }
+    /* Accordion */
+    .expense-acc-body { max-height:0;overflow:hidden;transition:max-height 250ms ease; }
+    .expense-acc-body.open { max-height:400px; }
+    .expense-acc-row { background:var(--bg-subtle,#f9fafb); }
+    .expense-acc-row td { padding:0 !important; }
+    /* Accordion inner content */
+    .acc-inner {
+      padding: 14px 16px;
+    }
+    .acc-detail-amount {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+    .acc-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    /* Confirm modal */
+    .confirm-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .confirm-overlay.open { display: flex; }
+    .confirm-dialog {
+      background: var(--white, #fff);
+      border-radius: 14px;
+      padding: 24px 20px 18px;
+      max-width: 320px;
+      width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .confirm-title {
+      font-family: 'Satoshi', 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+    .confirm-body {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .confirm-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
     }
   </style>
 </head>
@@ -257,11 +322,11 @@
   </div>
 </div>
 
-<!-- Add Expense slide-up -->
+<!-- Add / Edit Expense slide-up -->
 <div class="panel-overlay" id="addExpensePanel">
   <div class="panel" role="dialog" aria-label="Add Expense">
     <div class="panel-header">
-      <div class="panel-title">Add Expense</div>
+      <div class="panel-title" id="addPanelTitle">Add Expense</div>
       <button class="panel-close" id="addPanelClose">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -304,7 +369,7 @@
   </div>
 </div>
 
-<!-- Expense detail slide-up -->
+<!-- Expense detail slide-up (kept, no longer used for row clicks) -->
 <div class="panel-overlay" id="detailPanel">
   <div class="panel" role="dialog" aria-label="Expense Detail">
     <div class="panel-header">
@@ -314,6 +379,18 @@
       </button>
     </div>
     <div class="panel-body" id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div class="confirm-overlay" id="deleteExpenseConfirm">
+  <div class="confirm-dialog">
+    <div class="confirm-title">Delete Expense</div>
+    <div class="confirm-body">Delete this expense? This cannot be undone.</div>
+    <div class="confirm-actions">
+      <button class="btn btn--outline" id="deleteExpenseCancel">Cancel</button>
+      <button class="btn btn--danger" id="deleteExpenseConfirmBtn">Delete</button>
+    </div>
   </div>
 </div>
 
@@ -383,11 +460,112 @@
 
   let allExpenses = [];
 
+  // Edit mode state
+  let isEditMode = false;
+  let editExpenseId = null;
+
+  function resetAddPanel() {
+    isEditMode = false;
+    editExpenseId = null;
+    document.getElementById('addPanelTitle').textContent = 'Add Expense';
+    document.getElementById('addExpenseSubmit').innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Expense';
+    document.getElementById('expDate').value = now.toISOString().substring(0, 10);
+    document.getElementById('expCategory').value = '';
+    document.getElementById('expAmount').value = '';
+    document.getElementById('expPayee').value = '';
+    document.getElementById('expNotes').value = '';
+  }
+
+  function openEditExpense(expense) {
+    isEditMode = true;
+    editExpenseId = expense.ExpenseID;
+    document.getElementById('addPanelTitle').textContent = 'Edit Expense';
+    document.getElementById('addExpenseSubmit').innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
+    document.getElementById('expDate').value = expense.Date || '';
+    document.getElementById('expCategory').value = expense.Category || '';
+    document.getElementById('expAmount').value = expense.Amount || '';
+    document.getElementById('expPayee').value = expense.Payee || '';
+    document.getElementById('expNotes').value = expense.Notes || '';
+    document.getElementById('addExpensePanel').classList.add('open');
+  }
+
+  // Delete confirm state
+  let pendingDeleteId = null;
+
+  function openDeleteConfirm(expenseId) {
+    pendingDeleteId = expenseId;
+    document.getElementById('deleteExpenseConfirm').classList.add('open');
+  }
+
+  document.getElementById('deleteExpenseCancel').addEventListener('click', () => {
+    pendingDeleteId = null;
+    document.getElementById('deleteExpenseConfirm').classList.remove('open');
+  });
+
+  document.getElementById('deleteExpenseConfirmBtn').addEventListener('click', async function () {
+    if (!pendingDeleteId) return;
+    const expenseId = pendingDeleteId;
+    pendingDeleteId = null;
+    document.getElementById('deleteExpenseConfirm').classList.remove('open');
+
+    try {
+      const json = await postJSON({
+        action: 'deleteExpense',
+        adminToken: localStorage.getItem('adminToken'),
+        expenseId: expenseId
+      });
+      if (!json.success) throw new Error(json.error || 'Failed to delete expense');
+      showToast('Expense deleted', 'success');
+      await loadExpenses();
+    } catch (err) {
+      showToast(err.message || 'Failed to delete expense', 'error');
+    }
+  });
+
+  // Active accordion index
+  let openAccIdx = null;
+
+  // Active dot menu index
+  let openDotIdx = null;
+
+  function closeAllDotMenus() {
+    document.querySelectorAll('.expense-dot-menu').forEach(m => m.remove());
+    openDotIdx = null;
+  }
+
+  function buildAccordionContent(e) {
+    const notes = String(e.Notes || '');
+    const idx = allExpenses.indexOf(e);
+    return '<div class="acc-inner">'
+      + '<div class="acc-detail-amount">' + peso(e.Amount) + '</div>'
+      + '<div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">' + escHtml(formatDate(e.Date)) + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Category</span><span class="detail-value"><span class="' + catBadgeClass(e.Category) + '">' + escHtml(e.Category || '—') + '</span></span></div>'
+      + '<div class="detail-row"><span class="detail-label">Payee</span><span class="detail-value">' + escHtml(e.Payee || '—') + '</span></div>'
+      + '<div class="detail-row"><span class="detail-label">Expense ID</span><span class="detail-value" style="font-family:monospace;font-size:11px;">' + escHtml(e.ExpenseID || '—') + '</span></div>'
+      + (notes ? '<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">' + escHtml(notes) + '</span></div>' : '')
+      + '<div class="acc-actions">'
+      + '<button class="btn btn--sm btn--outline acc-edit-btn" data-idx="' + idx + '">'
+      + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+      + ' Edit'
+      + '</button>'
+      + '<button class="btn btn--sm btn--danger acc-delete-btn" data-idx="' + idx + '">'
+      + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
+      + ' Delete'
+      + '</button>'
+      + '</div>'
+      + '</div>';
+  }
+
   async function loadExpenses() {
     const loading = document.getElementById('loadingState');
     const error = document.getElementById('errorState');
     const content = document.getElementById('expensesContent');
     const monthFilter = document.getElementById('monthFilter').value;
+
+    openAccIdx = null;
+    closeAllDotMenus();
 
     loading.classList.remove('hidden'); loading.style.display = 'flex';
     error.classList.add('hidden');
@@ -439,29 +617,115 @@
     }
 
     emptyState.classList.add('hidden');
+
+    const dotSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">'
+      + '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>'
+      + '</svg>';
+
+    let rows = '';
+    expenses.forEach((e, idx) => {
+      const notes = String(e.Notes || '');
+      const notesTrunc = notes.length > 40 ? notes.substring(0, 40) + '…' : notes;
+      rows += '<tr class="expense-tr" data-idx="' + idx + '">'
+        + '<td style="white-space:nowrap;">' + escHtml(formatDate(e.Date)) + '</td>'
+        + '<td><span class="' + catBadgeClass(e.Category) + '">' + escHtml(e.Category || '—') + '</span></td>'
+        + '<td>' + escHtml(e.Payee || '—') + '</td>'
+        + '<td class="col-amount-right">' + peso(e.Amount) + '</td>'
+        + '<td><div class="notes-truncated">' + escHtml(notesTrunc || '—') + '</div></td>'
+        + '<td style="text-align:right;padding:6px 8px;"><div class="expense-dot-wrap">'
+        + '<button class="expense-dot-btn" data-idx="' + idx + '" aria-label="Options">' + dotSvg + '</button>'
+        + '</div></td>'
+        + '</tr>'
+        + '<tr class="expense-acc-row"><td colspan="6"><div class="expense-acc-body" id="eacc-' + idx + '">'
+        + buildAccordionContent(e)
+        + '</div></td></tr>';
+    });
+
     tableWrap.innerHTML = '<table>'
       + '<thead><tr>'
-      + '<th>Date</th><th>Category</th><th>Payee</th><th style="text-align:right;">Amount</th><th>Notes</th>'
+      + '<th>Date</th><th>Category</th><th>Payee</th><th style="text-align:right;">Amount</th><th>Notes</th><th></th>'
       + '</tr></thead>'
-      + '<tbody>'
-      + expenses.map((e, idx) => {
-          const notes = String(e.Notes || '');
-          const notesTrunc = notes.length > 40 ? notes.substring(0, 40) + '…' : notes;
-          return '<tr data-idx="' + idx + '">'
-            + '<td style="white-space:nowrap;">' + escHtml(formatDate(e.Date)) + '</td>'
-            + '<td><span class="' + catBadgeClass(e.Category) + '">' + escHtml(e.Category || '—') + '</span></td>'
-            + '<td>' + escHtml(e.Payee || '—') + '</td>'
-            + '<td class="col-amount-right">' + peso(e.Amount) + '</td>'
-            + '<td><div class="notes-truncated">' + escHtml(notesTrunc || '—') + '</div></td>'
-            + '</tr>';
-        }).join('')
-      + '</tbody></table>';
+      + '<tbody>' + rows + '</tbody></table>';
 
-    tableWrap.querySelectorAll('tbody tr').forEach(row => {
-      row.addEventListener('click', () => {
+    // Row click — toggle accordion (not on dot button)
+    tableWrap.querySelectorAll('tbody tr.expense-tr').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.expense-dot-wrap')) return;
         const idx = parseInt(row.dataset.idx, 10);
-        if (!isNaN(idx)) openDetail(allExpenses[idx]);
+        if (isNaN(idx)) return;
+        const accBody = document.getElementById('eacc-' + idx);
+        if (!accBody) return;
+
+        if (openAccIdx === idx) {
+          // Collapse same row
+          accBody.classList.remove('open');
+          openAccIdx = null;
+        } else {
+          // Close previously open
+          if (openAccIdx !== null) {
+            const prev = document.getElementById('eacc-' + openAccIdx);
+            if (prev) prev.classList.remove('open');
+          }
+          accBody.classList.add('open');
+          openAccIdx = idx;
+        }
+        closeAllDotMenus();
       });
+    });
+
+    // Dot button click
+    tableWrap.querySelectorAll('.expense-dot-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.idx, 10);
+
+        // If same menu already open, close it
+        if (openDotIdx === idx) {
+          closeAllDotMenus();
+          return;
+        }
+
+        closeAllDotMenus();
+        openDotIdx = idx;
+
+        const wrap = btn.closest('.expense-dot-wrap');
+        const menu = document.createElement('div');
+        menu.className = 'expense-dot-menu';
+        menu.innerHTML =
+          '<button class="edit-opt" data-idx="' + idx + '">'
+          + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:middle;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit'
+          + '</button>'
+          + '<button class="delete-opt" data-idx="' + idx + '">'
+          + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;vertical-align:middle;"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>Delete'
+          + '</button>';
+        wrap.appendChild(menu);
+
+        menu.querySelector('.edit-opt').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          closeAllDotMenus();
+          openEditExpense(allExpenses[idx]);
+        });
+        menu.querySelector('.delete-opt').addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          closeAllDotMenus();
+          openDeleteConfirm(allExpenses[idx].ExpenseID);
+        });
+      });
+    });
+
+    // Accordion Edit/Delete buttons
+    tableWrap.addEventListener('click', (e) => {
+      const editBtn = e.target.closest('.acc-edit-btn');
+      if (editBtn) {
+        const idx = parseInt(editBtn.dataset.idx, 10);
+        if (!isNaN(idx)) openEditExpense(allExpenses[idx]);
+        return;
+      }
+      const delBtn = e.target.closest('.acc-delete-btn');
+      if (delBtn) {
+        const idx = parseInt(delBtn.dataset.idx, 10);
+        if (!isNaN(idx)) openDeleteConfirm(allExpenses[idx].ExpenseID);
+      }
     });
   }
 
@@ -483,14 +747,18 @@
 
   // Add Expense panel
   document.getElementById('addExpenseBtn').addEventListener('click', () => {
+    resetAddPanel();
     document.getElementById('addExpensePanel').classList.add('open');
   });
   document.getElementById('addPanelClose').addEventListener('click', () => {
     document.getElementById('addExpensePanel').classList.remove('open');
+    resetAddPanel();
   });
   document.getElementById('addExpensePanel').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('addExpensePanel'))
+    if (e.target === document.getElementById('addExpensePanel')) {
       document.getElementById('addExpensePanel').classList.remove('open');
+      resetAddPanel();
+    }
   });
 
   // Detail panel close
@@ -502,7 +770,14 @@
       document.getElementById('detailPanel').classList.remove('open');
   });
 
-  // Submit add expense
+  // Close dot menus when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.expense-dot-wrap')) {
+      closeAllDotMenus();
+    }
+  });
+
+  // Submit add / edit expense
   document.getElementById('addExpenseSubmit').addEventListener('click', async function () {
     const date     = document.getElementById('expDate').value.trim();
     const category = document.getElementById('expCategory').value;
@@ -519,39 +794,50 @@
     this.innerHTML = '<div class="spinner" style="width:16px;height:16px;border-width:2px;"></div> Saving…';
 
     try {
-      const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          action:     'addExpense',
+      if (isEditMode) {
+        const json = await postJSON({
+          action:     'updateExpense',
           adminToken: localStorage.getItem('adminToken'),
+          expenseId:  editExpenseId,
           date:       date,
           category:   category,
           amount:     amount,
           payee:      payee,
           notes:      notes
-        })
-      });
-      const json = await res.json();
+        });
+        if (!json.success) throw new Error(json.error || 'Failed to update expense');
+        showToast('Expense updated', 'success');
+      } else {
+        const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action:     'addExpense',
+            adminToken: localStorage.getItem('adminToken'),
+            date:       date,
+            category:   category,
+            amount:     amount,
+            payee:      payee,
+            notes:      notes
+          })
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Failed to save expense');
+        showToast('Expense saved.', 'success');
+      }
 
-      if (!json.success) throw new Error(json.error || 'Failed to save expense');
-
-      showToast('Expense saved.', 'success');
       document.getElementById('addExpensePanel').classList.remove('open');
-
-      // Reset form
-      document.getElementById('expDate').value = now.toISOString().substring(0, 10);
-      document.getElementById('expCategory').value = '';
-      document.getElementById('expAmount').value = '';
-      document.getElementById('expPayee').value = '';
-      document.getElementById('expNotes').value = '';
-
+      resetAddPanel();
       await loadExpenses();
     } catch (err) {
       showToast(err.message || 'Failed to save expense', 'error');
     } finally {
       this.disabled = false;
-      this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Expense';
+      if (isEditMode) {
+        this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
+      } else {
+        this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Expense';
+      }
     }
   });
 
