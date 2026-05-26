@@ -27,6 +27,8 @@ function doGet(e) {
       case "getPendingProofs": return respond(getPendingProofs(params));
       case "getAllProofs":      return respond(getAllProofs(params));
       case "checkExistingBill": return respond(checkExistingBill(params));
+      case "getProofs":        return respond(getProofs(params));
+      case "getTenantHistory": return respond(getTenantHistory(params));
       case "getConfig":        return respond(getConfig());
       default:
         return respond(null, "Unknown action: " + action);
@@ -697,9 +699,9 @@ function submitPaymentProof(body) {
   var unitId      = String(body.unitId      || "").trim();
   var referenceNo = String(body.referenceNo || "").trim();
   var amountPaid  = parseFloat(body.amountPaid) || 0;
-  var driveUrl    = String(body.driveUrl    || "").trim();
+  var imageUrl    = String(body.driveUrl    || body.imageUrl || "").trim();
   var notes       = String(body.notes       || "").trim();
-  var submittedAt = String(body.submittedAt || "").trim();
+  var submittedAt = String(body.submittedAt || "").trim() || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
 
   if (!tenantId)       throw new Error("tenantId is required");
   if (!referenceNo)    throw new Error("referenceNo is required");
@@ -710,17 +712,15 @@ function submitPaymentProof(body) {
   if (!tenant) throw new Error("Tenant not found");
   var tenantName = tenant["Name"] || tenantId;
 
-  var allUnits = sheetToJSON(getSheet("Units"));
-  var unit     = allUnits.filter(function(u) { return u["UnitID"] === unitId; })[0] || {};
-  var unitName = unit["UnitName"] || unitId;
+  var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
 
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName("PaymentProofs");
   if (!sheet) {
     sheet = ss.insertSheet("PaymentProofs");
-    sheet.appendRow(["SubmissionID","TenantID","UnitID","TenantName","UnitName",
-                     "ReferenceNo","AmountPaid","DriveURL","Notes","SubmittedAt",
-                     "Status","ReviewedAt","ReviewNote","LedgerTxnID"]);
+    sheet.appendRow(["ProofID","TenantID","TenantName","UnitID","Amount","ReferenceNo",
+                     "Notes","BillingMonth","BillType","ImageUrl","Status","SubmittedAt",
+                     "DeclineReason","ReviewedAt"]);
   }
 
   var cfg          = getConfig();
@@ -1021,38 +1021,122 @@ function updateConfig(body) {
 // PAYMENT PROOFS
 // ============================================================
 
-function getPendingProofs(params) {
-  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var sheet = ss.getSheetByName("PaymentProofs");
-  if (!sheet) return { data: [], pendingCount: 0 };
-
-  var rows = sheetToJSON(sheet).filter(function(r) {
-    return r["Status"] === "Pending" || r["Status"] === "Auto-Approved";
-  });
-  rows.sort(function(a, b) {
-    var ta = String(a["SubmittedAt"] || "");
-    var tb = String(b["SubmittedAt"] || "");
-    return ta < tb ? 1 : ta > tb ? -1 : 0;
-  });
-  return { data: rows, pendingCount: rows.length };
-}
-
-function getAllProofs(params) {
+function getProofs(params) {
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName("PaymentProofs");
   if (!sheet) return [];
 
+  // Ensure required columns exist
+  var headers = sheet.getDataRange().getValues()[0].map(function(h) { return String(h).trim(); });
+  if (headers.indexOf("DeclineReason") < 0) {
+    sheet.getRange(1, headers.length + 1).setValue("DeclineReason");
+    headers.push("DeclineReason");
+  }
+  if (headers.indexOf("ReviewedAt") < 0) {
+    sheet.getRange(1, headers.length + 1).setValue("ReviewedAt");
+    headers.push("ReviewedAt");
+  }
+
   var rows = sheetToJSON(sheet);
+  if (rows.length === 0) return [];
+
+  rows = rows.map(function(r) {
+    return {
+      ProofID:       String(r["ProofID"]       || r["SubmissionID"] || ""),
+      TenantID:      String(r["TenantID"]      || ""),
+      TenantName:    String(r["TenantName"]    || ""),
+      UnitID:        String(r["UnitID"]        || ""),
+      Amount:        parseFloat(r["Amount"]    || r["AmountPaid"] || 0),
+      ReferenceNo:   String(r["ReferenceNo"]   || ""),
+      Notes:         String(r["Notes"]         || ""),
+      BillingMonth:  String(r["BillingMonth"]  || ""),
+      BillType:      String(r["BillType"]      || "Rent"),
+      ImageUrl:      String(r["ImageUrl"]      || r["DriveURL"] || ""),
+      Status:        String(r["Status"]        || "Pending"),
+      SubmittedAt:   String(r["SubmittedAt"]   || ""),
+      DeclineReason: String(r["DeclineReason"] || r["ReviewNote"] || ""),
+      ReviewedAt:    String(r["ReviewedAt"]    || "")
+    };
+  });
+
   if (params && params.status) {
     rows = rows.filter(function(r) { return r["Status"] === params.status; });
   }
   rows.sort(function(a, b) {
-    var ta = String(a["SubmittedAt"] || "");
-    var tb = String(b["SubmittedAt"] || "");
-    return ta < tb ? 1 : ta > tb ? -1 : 0;
+    return String(a["SubmittedAt"]) < String(b["SubmittedAt"]) ? 1 : -1;
   });
   return rows;
 }
+
+function getPendingProofs(params) {
+  var rows = getProofs(null);
+  var pending = rows.filter(function(r) { return r["Status"] === "Pending" || r["Status"] === "Auto-Approved"; });
+  return { data: pending, pendingCount: pending.length };
+}
+
+function getAllProofs(params) {
+  return getProofs(params);
+}
+
+function getTenantHistory(params) {
+  var tenantId = String(params.tenantId || "").trim();
+  var month    = String(params.month    || "").trim();
+  if (!tenantId) return [];
+
+  var ledger = sheetToJSON(getSheet("Ledger")).filter(function(r) {
+    return String(r["TenantID"]) === tenantId;
+  });
+  if (month) {
+    ledger = ledger.filter(function(r) {
+      return String(r["BillingMonth"] || "").substring(0, 7) === month;
+    });
+  }
+
+  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  var proofs     = proofSheet ? sheetToJSON(proofSheet).filter(function(r) {
+    return String(r["TenantID"]) === tenantId;
+  }) : [];
+
+  var enriched = ledger.map(function(r) {
+    var row = {};
+    for (var k in r) { if (r.hasOwnProperty(k)) row[k] = r[k]; }
+    row.proofStatus   = null;
+    row.declineReason = null;
+
+    if (String(r["TxnType"]) === "Payment") {
+      var amt = parseFloat(r["TotalAmount"]) || 0;
+      var mon = String(r["BillingMonth"] || "").substring(0, 7);
+      var match = null;
+      for (var i = 0; i < proofs.length; i++) {
+        var p    = proofs[i];
+        var pAmt = parseFloat(p["Amount"] || p["AmountPaid"] || 0);
+        var pMon = String(p["BillingMonth"] || "").substring(0, 7);
+        if (Math.abs(pAmt - amt) < 0.01 && pMon === mon) { match = p; break; }
+      }
+      if (match) {
+        var st = String(match["Status"] || "Pending");
+        row.proofStatus = st;
+        if (st === "Declined") {
+          row.declineReason = String(match["DeclineReason"] || match["ReviewNote"] || "");
+        }
+      } else {
+        row.proofStatus = "Admin Recorded";
+      }
+    }
+    return row;
+  });
+
+  enriched.sort(function(a, b) {
+    var da = String(a["Date"] || "");
+    var db = String(b["Date"] || "");
+    return da < db ? 1 : da > db ? -1 : 0;
+  });
+  return enriched;
+}
+
+
+
 
 function editPayment(body) {
   var submissionId = String(body.submissionId || "").trim();

@@ -18,13 +18,15 @@
   style.textContent = `
     #qpFab {
       position: fixed; bottom: 80px; right: 20px;
-      width: 52px; height: 52px; border-radius: 50%;
+      width: auto; min-width: 64px; height: 44px;
+      border-radius: 22px; padding: 0 16px;
       background: var(--accent, #4f7ef8);
       border: none; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
       box-shadow: 0 4px 16px rgba(79,126,248,0.4);
       z-index: 8000;
       transition: transform 0.15s, box-shadow 0.15s;
+      color: #fff;
     }
     #qpFab:active { transform: scale(0.93); box-shadow: 0 2px 8px rgba(79,126,248,0.3); }
     body.slide-up-open #qpFab { display: none !important; }
@@ -230,10 +232,8 @@
   const wrap = document.createElement('div');
   wrap.innerHTML = `
     <button id="qpFab" aria-label="Quick Payment">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="5" width="20" height="14" rx="2"/>
-        <line x1="2" y1="10" x2="22" y2="10"/>
-      </svg>
+      <span style="font-size:16px;font-weight:700;line-height:1;">&#8369;</span>
+      <span style="font-size:14px;font-weight:600;font-family:'Inter',sans-serif;letter-spacing:0.01em;">Pay</span>
     </button>
 
     <div id="qpOverlay">
