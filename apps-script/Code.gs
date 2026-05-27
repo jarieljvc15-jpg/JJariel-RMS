@@ -750,7 +750,7 @@ function submitPaymentProof(body) {
     BillingMonth: billingMonth,
     ReferenceNo:  referenceNo,
     AmountPaid:   amountPaid,
-    DriveURL:     driveUrl,
+    DriveURL:     imageUrl,
     Notes:        notes,
     SubmittedAt:  submittedAt,
     Status:       "Pending",
