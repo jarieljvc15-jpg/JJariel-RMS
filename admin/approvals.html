@@ -598,7 +598,7 @@
         <polyline points="22 4 12 14.01 9 11.01"/>
       </svg>
       <div class="empty-state-title" style="color:var(--success);">All caught up!</div>
-      <div class="empty-state-approvals-sub">No payment proofs awaiting review.</div>
+      <div class="empty-state-approvals-sub" style="color:var(--text-muted);text-align:center;">No pending submissions</div>
     </div>
     <div id="reviewList" class="hidden"></div>
   </div>
@@ -981,22 +981,27 @@
     document.getElementById('reviewEmpty').classList.add('hidden');
     document.getElementById('reviewList').classList.add('hidden');
 
-    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getProofs&status=Pending')
+    fetch(CONFIG.APPS_SCRIPT_URL + '?action=getPendingProofs')
       .then(function (r) { return r.json(); })
       .then(function (json) {
         document.getElementById('reviewLoading').classList.add('hidden');
         if (!json.success) throw new Error(json.error || 'API error');
-        reviewProofs = Array.isArray(json.data) ? json.data : [];
-        var count = reviewProofs.length;
+        var rawData = json.data && json.data.data;
+        reviewProofs = Array.isArray(rawData) ? rawData : [];
+        // Client-side safety filter: only show truly Pending cards
+        reviewProofs = reviewProofs.filter(function (p) { return p.Status === 'Pending'; });
+        var count = (json.data && typeof json.data.pendingCount === 'number')
+          ? json.data.pendingCount
+          : reviewProofs.length;
         document.getElementById('pendingBadge').textContent = count;
         document.getElementById('approvalsDot').style.display = count > 0 ? 'block' : 'none';
-        if (count === 0) {
+        if (reviewProofs.length === 0) {
           document.getElementById('reviewEmpty').classList.remove('hidden');
         } else {
           var list = document.getElementById('reviewList');
           list.innerHTML = reviewProofs.map(renderReviewCard).join('');
           list.classList.remove('hidden');
-          bindReviewCards(list);
+          bindReviewCardListeners(list);
         }
       })
       .catch(function (err) {
@@ -1014,22 +1019,10 @@
       : '';
     var proofJson = esc(JSON.stringify(proof));
     var sid = esc(proof.SubmissionID);
-    return '<div class="submission-card" data-submission-id="' + sid + '">'
-      + '<div class="card-header-row">'
-      +   '<div style="min-width:0;overflow:hidden;">'
-      +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
-      +     '<span class="card-unit-badge">' + esc(proof.UnitName || proof.UnitID || '') + '</span>'
-      +   '</div>'
-      +   '<span class="card-time">' + timeAgo(proof.SubmittedAt) + '</span>'
-      + '</div>'
-      + '<div class="card-amount-row">'
-      +   '<span class="card-amount">' + pesoHtml(proof.Amount) + '</span>'
-      +   (ref ? '<span class="card-ref-pill">' + esc(ref) + '</span>' : '')
-      +   '<span class="badge badge--pending" style="font-size:11px;">Pending</span>'
-      + '</div>'
-      + notesHtml
-      + screenshotHtml
-      + '<div class="card-actions">'
+    var ref = proof.ReferenceNo || '';
+    var isPending = proof.Status === 'Pending';
+    var actionsHtml = isPending
+      ? '<div class="card-actions">'
       +   '<button class="btn btn--primary btn--sm quick-approve-btn" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
       +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>'
       +     'Quick Approve'
@@ -1051,6 +1044,23 @@
       +     '<button class="btn btn--outline btn--sm cancel-decline-btn" data-submission-id="' + sid + '">Cancel</button>'
       +   '</div>'
       + '</div>'
+      : '<div style="margin-top:10px;">' + statusBadgeHtml(proof.Status) + '</div>';
+    return '<div class="submission-card" data-submission-id="' + sid + '">'
+      + '<div class="card-header-row">'
+      +   '<div style="min-width:0;overflow:hidden;">'
+      +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
+      +     '<span class="card-unit-badge">' + esc(proof.UnitName || proof.UnitID || '') + '</span>'
+      +   '</div>'
+      +   '<span class="card-time">' + timeAgo(proof.SubmittedAt) + '</span>'
+      + '</div>'
+      + '<div class="card-amount-row">'
+      +   '<span class="card-amount">' + pesoHtml(proof.Amount) + '</span>'
+      +   (ref ? '<span class="card-ref-pill">' + esc(ref) + '</span>' : '')
+      +   '<span class="badge badge--pending" style="font-size:11px;">Pending</span>'
+      + '</div>'
+      + notesHtml
+      + screenshotHtml
+      + actionsHtml
       + '</div>';
   }
 
