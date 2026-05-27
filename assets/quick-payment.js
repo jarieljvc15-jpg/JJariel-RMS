@@ -8,6 +8,7 @@
   function esc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+  function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function currentMonth() {
     const d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
@@ -217,6 +218,18 @@
       font-size: 13px;
     }
 
+    .qp-search-wrap { margin-bottom: 8px; }
+    .qp-search-input { width: 100%; box-sizing: border-box; }
+    .qp-tenant-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card, #fff); }
+    .qp-tenant-row { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border-subtle, #f0f0f0); }
+    .qp-tenant-row:last-child { border-bottom: none; }
+    .qp-tenant-row:hover { background: var(--navy-50, #f0f4ff); }
+    .qp-tenant-row.selected { background: var(--accent, #2563eb); color: #fff; }
+    .qp-tenant-row.selected .qp-tenant-sub { color: rgba(255,255,255,0.75); }
+    .qp-tenant-name { font-size: 14px; font-weight: 500; font-family: 'Inter', sans-serif; }
+    .qp-tenant-sub { font-size: 12px; color: var(--text-muted); font-family: 'Inter', sans-serif; margin-top: 2px; }
+    .qp-no-results { padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
     .qp-hidden { display: none !important; }
     .qp-spinner {
       width: 20px; height: 20px; border: 2px solid var(--border, #e5e7eb);
@@ -258,16 +271,19 @@
           <div class="qp-spinner" id="qpSpinner1"></div>
           <div id="qpStep1Loaded" class="qp-hidden">
             <label class="qp-flabel">Tenant</label>
-            <select class="qp-input" id="qpTenantSel">
-              <option value="">— Select tenant —</option>
-            </select>
+            <div class="qp-search-wrap">
+              <input type="search" class="qp-input qp-search-input" id="qpTenantSearch" placeholder="Search tenant or unit..." autocomplete="off">
+            </div>
+            <div class="qp-tenant-list" id="qpTenantList">
+              <!-- populated by JS -->
+            </div>
             <div class="qp-balance-card qp-hidden" id="qpBalCard">
               <div class="qp-balance-row"><span>Rent owed</span><span id="qpB1R">—</span></div>
               <div class="qp-balance-row"><span>Electricity owed</span><span id="qpB1E">—</span></div>
               <div class="qp-balance-row"><span>Water owed</span><span id="qpB1W">—</span></div>
               <div class="qp-balance-total"><span>Total balance</span><span id="qpB1T">—</span></div>
             </div>
-            <button class="qp-btn qp-btn--primary" id="qpS1Next" disabled>Continue</button>
+            <button class="btn btn--primary btn--full" id="qpNextBtn" disabled style="margin-top:12px;">Next</button>
           </div>
         </div>
 
@@ -422,9 +438,11 @@
     showStep(1);
     selectedTenant = null; currentBalance = null;
     isFullPay = true; proofBase64 = null; proofFileName = null;
-    document.getElementById('qpTenantSel').value = '';
+    const searchInput = document.getElementById('qpTenantSearch');
+    if (searchInput) searchInput.value = '';
+    renderTenantList('');
+    updateNextBtn();
     document.getElementById('qpBalCard').classList.add('qp-hidden');
-    document.getElementById('qpS1Next').disabled = true;
     ['qpRent','qpElec','qpWater'].forEach(id => { document.getElementById(id).value = ''; });
     document.getElementById('qpTotalDisplay').textContent = '₱0.00';
     document.getElementById('qpRefNo').value = '';
@@ -456,6 +474,48 @@
     document.getElementById('qpSheet').scrollTop = 0;
   }
 
+  /* ── tenant list render ──────────────────────────────────────── */
+  function renderTenantList(filter) {
+    const list = document.getElementById('qpTenantList');
+    if (!list) return;
+    const q = (filter || '').toLowerCase().trim();
+    const filtered = q ? tenants.filter(t =>
+      (t.Name || '').toLowerCase().includes(q) ||
+      (t.UnitID || '').toLowerCase().includes(q) ||
+      (t.UnitName || '').toLowerCase().includes(q) ||
+      (t.BuildingName || '').toLowerCase().includes(q)
+    ) : tenants;
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<div class="qp-no-results">No tenants found</div>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(t => {
+      const isSelected = selectedTenant && selectedTenant.TenantID === t.TenantID;
+      return '<div class="qp-tenant-row' + (isSelected ? ' selected' : '') + '" data-tenant-id="' + escHtml(t.TenantID) + '">'
+        + '<div class="qp-tenant-name">' + escHtml(t.Name || '—') + '</div>'
+        + '<div class="qp-tenant-sub">' + escHtml(t.UnitID || '') + (t.BuildingName ? ' · ' + escHtml(t.BuildingName) : '') + '</div>'
+        + '</div>';
+    }).join('');
+
+    // Bind click handlers
+    list.querySelectorAll('.qp-tenant-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const tid = row.dataset.tenantId;
+        selectedTenant = tenants.find(t => t.TenantID === tid) || null;
+        renderTenantList(document.getElementById('qpTenantSearch') ? document.getElementById('qpTenantSearch').value : '');
+        updateNextBtn();
+        if (selectedTenant) fetchBalance(tid);
+      });
+    });
+  }
+
+  function updateNextBtn() {
+    const btn = document.getElementById('qpNextBtn');
+    if (btn) btn.disabled = !selectedTenant;
+  }
+
   /* ── load tenants ────────────────────────────────────────────── */
   async function loadTenants() {
     if (tenantsLoaded) { applyPendingTenant(); return; }
@@ -464,18 +524,26 @@
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Failed to load tenants');
       tenants = json.data || [];
-      const sel = document.getElementById('qpTenantSel');
-      tenants.forEach(t => {
-        const opt = document.createElement('option');
-        opt.value = t.TenantID;
-        const unit = t.UnitName || t.UnitID || '';
-        const bld  = t.BuildingName ? ' (' + t.BuildingName + ')' : '';
-        opt.textContent = t.Name + ' — ' + unit + bld;
-        sel.appendChild(opt);
-      });
       tenantsLoaded = true;
       document.getElementById('qpSpinner1').classList.add('qp-hidden');
       document.getElementById('qpStep1Loaded').classList.remove('qp-hidden');
+      renderTenantList('');
+      updateNextBtn();
+      const searchInput = document.getElementById('qpTenantSearch');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => renderTenantList(searchInput.value));
+      }
+      const nextBtn = document.getElementById('qpNextBtn');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+          const s1 = document.getElementById('qpStep1');
+          const s2 = document.getElementById('qpStep2');
+          if (s1 && s2) {
+            showStep(2);
+            fillFullPay();
+          }
+        });
+      }
       applyPendingTenant();
     } catch (err) {
       document.getElementById('qpSpinner1').innerHTML =
@@ -487,23 +555,21 @@
     if (!pendingTenantId) return;
     const tid = pendingTenantId;
     pendingTenantId = null;
-    const sel = document.getElementById('qpTenantSel');
-    sel.value = tid;
     selectedTenant = tenants.find(t => t.TenantID === tid) || null;
+    renderTenantList('');
+    updateNextBtn();
     if (selectedTenant) fetchBalance(tid);
   }
 
   /* ── fetch balance ───────────────────────────────────────────── */
   async function fetchBalance(tenantId) {
     const card = document.getElementById('qpBalCard');
-    const next = document.getElementById('qpS1Next');
     card.innerHTML = `
       <div class="qp-balance-row"><span>Rent owed</span><span id="qpB1R">—</span></div>
       <div class="qp-balance-row"><span>Electricity owed</span><span id="qpB1E">—</span></div>
       <div class="qp-balance-row"><span>Water owed</span><span id="qpB1W">—</span></div>
       <div class="qp-balance-total"><span>Total balance</span><span id="qpB1T">—</span></div>`;
     card.classList.remove('qp-hidden');
-    next.disabled = true;
     try {
       const res  = await fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBalance&tenantId=' + encodeURIComponent(tenantId));
       const json = await res.json();
@@ -517,7 +583,6 @@
       if (total > 0)      { tEl.textContent = peso(total) + ' owed';   tEl.className = 'qp-val-debit'; }
       else if (total < 0) { tEl.textContent = peso(Math.abs(total)) + ' credit'; tEl.className = 'qp-val-credit'; }
       else                { tEl.textContent = 'No outstanding balance'; tEl.className = ''; }
-      next.disabled = false;
     } catch (err) {
       card.innerHTML = '<div class="qp-err" style="padding:8px 0;">' + esc(err.message) + '</div>';
     }
@@ -608,19 +673,7 @@
   document.getElementById('qpClose').addEventListener('click', closePanel);
   overlay.addEventListener('click', e => { if (e.target === overlay) closePanel(); });
 
-  // Step 1 — tenant select
-  document.getElementById('qpTenantSel').addEventListener('change', function () {
-    selectedTenant = tenants.find(t => t.TenantID === this.value) || null;
-    if (selectedTenant) fetchBalance(this.value);
-    else {
-      document.getElementById('qpBalCard').classList.add('qp-hidden');
-      document.getElementById('qpS1Next').disabled = true;
-    }
-  });
-  document.getElementById('qpS1Next').addEventListener('click', () => {
-    showStep(2);
-    fillFullPay();
-  });
+  // Step 1 — search input and next button are bound after tenants load (inside loadTenants)
 
   // Step 2 — amount mode
   document.getElementById('qpPayFull').addEventListener('click', () => {
@@ -749,9 +802,9 @@
     document.querySelectorAll('.panel-overlay.open, .drawer-overlay.open').forEach(p => p.classList.remove('open'));
     openPanel();
     if (tenantsLoaded) {
-      const sel = document.getElementById('qpTenantSel');
-      sel.value = tenantId;
       selectedTenant = tenants.find(t => t.TenantID === tenantId) || null;
+      renderTenantList('');
+      updateNextBtn();
       if (selectedTenant) fetchBalance(tenantId);
     } else {
       pendingTenantId = tenantId;

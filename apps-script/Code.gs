@@ -1070,7 +1070,7 @@ function getProofs(params) {
 
 function getPendingProofs(params) {
   var rows = getProofs(null);
-  var pending = rows.filter(function(r) { return r["Status"] === "Pending" || r["Status"] === "Auto-Approved"; });
+  var pending = rows.filter(function(r) { return r["Status"] === "Pending"; });
   return { data: pending, pendingCount: pending.length };
 }
 

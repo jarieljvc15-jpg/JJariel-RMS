@@ -84,59 +84,6 @@
     .summary-cell-value--debit  { color: var(--danger); }
     .summary-cell-value--credit { color: var(--success); }
     .summary-cell-value--net    { color: var(--text-primary); }
-    /* Table */
-    .ledger-table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-    }
-    th {
-      text-align: left;
-      font-family: 'Inter', sans-serif;
-      font-weight: 600;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      padding: 9px 10px;
-      border-bottom: 1px solid var(--border);
-      white-space: nowrap;
-      background: var(--navy-50);
-    }
-    td {
-      padding: 10px 10px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text-primary);
-      vertical-align: top;
-    }
-    tr:last-child td { border-bottom: none; }
-    tbody tr { cursor: pointer; }
-    tbody tr:hover td { background: var(--navy-50); }
-    .txn-id-badge {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 10px;
-      font-weight: 600;
-      background: var(--navy-50);
-      color: var(--navy-600);
-      padding: 2px 6px;
-      border-radius: 4px;
-      white-space: nowrap;
-    }
-    .col-amount {
-      text-align: right;
-      font-family: 'Satoshi', 'Inter', sans-serif;
-      font-weight: 700;
-      white-space: nowrap;
-    }
-    .col-dash {
-      color: var(--text-muted);
-      font-weight: 400;
-    }
     .dir-debit  { color: var(--danger); font-weight: 600; font-size: 11px; }
     .dir-credit { color: var(--success); font-weight: 600; font-size: 11px; }
     /* Type badges */
@@ -156,108 +103,24 @@
       font-size: 11px;
       color: var(--text-secondary);
     }
-    @media (max-width: 640px) {
-      .col-desktop { display: none; }
-      /* Ensure the 4 visible columns (Date, Tenant, Type, Total) fill the width
-         without horizontal scroll, and Total is never cut off */
-      .ledger-table-wrap { overflow-x: hidden; }
-      table { table-layout: fixed; width: 100%; }
-      th, td { padding: 8px 6px; }
-      /* Column widths for mobile: Date(72px) Tenant(auto) Type(56px) Total(72px) */
-      th:first-child, td:first-child { width: 72px; }
-      th:nth-child(3), td:nth-child(3) { white-space: normal; word-break: break-word; overflow-wrap: break-word; }
-    }
-    /* Panel */
-    .panel-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.45);
-      z-index: 200;
-      display: none; align-items: flex-end;
-    }
-    .panel-overlay.open { display: flex; }
-    .panel {
-      background: var(--white);
-      width: 100%;
-      max-height: 92vh;
-      border-radius: 16px 16px 0 0;
-      display: flex; flex-direction: column; overflow: hidden;
-    }
-    .panel-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 16px 12px;
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .panel-title {
-      font-family: 'Satoshi', 'Inter', sans-serif;
-      font-weight: 700; font-size: 16px;
-      color: var(--text-primary);
-    }
-    .panel-close {
-      width: 32px; height: 32px;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 8px; border: none; background: none;
-      cursor: pointer; color: var(--text-secondary);
-    }
-    .panel-close:hover { background: rgba(0,0,0,0.06); }
-    .panel-close svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-    .panel-body { overflow-y: auto; padding: 16px; flex: 1; }
-    .detail-amount-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-    .detail-total {
-      font-family: 'Satoshi', 'Inter', sans-serif;
-      font-weight: 800;
-      font-size: 22px;
-      color: var(--text-primary);
-    }
-    .detail-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 9px 0;
-      border-bottom: 1px solid var(--border);
-      font-size: 13px;
-    }
-    .detail-row:last-child { border-bottom: none; }
-    .detail-label { color: var(--text-secondary); font-weight: 500; }
-    .detail-value { color: var(--text-primary); font-weight: 600; text-align: right; max-width: 55%; word-break: break-word; }
-    .detail-breakdown {
-      background: var(--navy-50);
-      border-radius: var(--radius-sm);
-      padding: 10px 12px;
-      margin: 12px 0;
-    }
-    .detail-breakdown-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      padding: 3px 0;
-      color: var(--text-secondary);
-    }
-    .detail-breakdown-row strong {
-      color: var(--text-primary);
-    }
-    /* Section header */
-    .section-header {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin: 4px 0 8px;
-    }
-    /* Inline accordion */
-    .acc-detail {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 250ms ease;
-    }
-    .acc-detail.open { max-height: 500px; }
-    .ledger-acc-row { background: var(--bg-subtle, #f9fafb); }
-    .ledger-acc-row td { padding: 0 !important; }
+    /* Card layout */
+    .ledger-card { background: var(--bg-card, #fff); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 8px; cursor: pointer; }
+    .ledger-card:active { background: var(--navy-50, #f0f4ff); }
+    .ledger-card-row1 { display: flex; align-items: center; gap: 8px; }
+    .ledger-card-date { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-secondary); flex: 0 0 auto; }
+    .ledger-card-badge { flex: 1; }
+    .ledger-card-amount { font-family: 'Nunito', 'Inter', sans-serif; font-size: 15px; font-weight: 700; flex: 0 0 auto; }
+    .ledger-card-chevron { flex: 0 0 auto; color: var(--text-muted); transition: transform 250ms ease; }
+    .ledger-card-chevron.open { transform: rotate(180deg); }
+    .ledger-card-row2 { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .ledger-acc-body { max-height: 0; overflow: hidden; transition: max-height 250ms ease; border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); background: var(--bg-subtle, #f9fafb); }
+    .ledger-acc-body.open { max-height: 200px; }
+    .ledger-acc-inner { padding: 10px 12px; }
+    .ledger-acc-row-item { display: flex; gap: 8px; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+    .ledger-acc-label { color: var(--text-muted); font-size: 11px; flex: 0 0 80px; }
+    .ledger-acc-value { font-size: 12px; color: var(--text-primary); }
+    .ledger-acc-value--mono { font-family: 'Courier New', monospace; font-size: 11px; word-break: break-all; }
+    .ledger-sort-btn { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; background: none; border: none; cursor: pointer; padding: 0 0 8px 0; display: block; }
   </style>
 </head>
 <body>
@@ -320,7 +183,7 @@
 
     <!-- Ledger content -->
     <div id="ledgerContent" class="hidden">
-      <div class="ledger-table-wrap" id="tableWrap"></div>
+      <div id="tableWrap"></div>
       <div id="emptyState" class="hidden" style="text-align:center;padding:40px 0;color:var(--text-muted);font-size:14px;">
         No transactions found for the selected filters
       </div>
@@ -380,19 +243,6 @@
   </div>
 </div>
 
-<!-- Transaction detail slide-up -->
-<div class="panel-overlay" id="txnPanel">
-  <div class="panel" role="dialog" aria-label="Transaction Detail">
-    <div class="panel-header">
-      <div class="panel-title" id="txnPanelTitle">Transaction</div>
-      <button class="panel-close" id="txnPanelClose">
-        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="panel-body" id="txnPanelBody"></div>
-  </div>
-</div>
-
 <!-- Toast container -->
 <div class="toast-container" id="toastContainer"></div>
 
@@ -445,13 +295,6 @@
       Adjustment: 'badge-type--adjustment'
     };
     return '<span class="badge-type ' + (map[type] || 'badge-type--bill') + '">' + escHtml(type || '—') + '</span>';
-  }
-
-  function amountCell(n) {
-    const v = parseFloat(n) || 0;
-    return v === 0
-      ? '<span class="col-dash">—</span>'
-      : peso(v);
   }
 
   // Populate tenant & unit dropdowns
@@ -525,50 +368,28 @@
     }
   }
 
-  function accDetailHtml(r) {
-    const rent  = parseFloat(r.RentAmount)  || 0;
-    const elec  = parseFloat(r.ElecAmount)  || 0;
-    const water = parseFloat(r.WaterAmount) || 0;
-    const total = parseFloat(r.TotalAmount) || 0;
-    const ref   = String(r.ReferenceNo  || '');
-    const mode  = String(r.PaymentMode  || '');
-    const notes = String(r.Notes        || '');
+  function formatDate(s) {
+    const d = String(s || '').substring(0, 10);
+    if (!d || d === '—') return d || '—';
+    const parts = d.split('-');
+    if (parts.length < 3) return d;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const mo = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const yr = parts[0];
+    return (months[mo] || parts[1]) + ' ' + day + ', ' + yr;
+  }
 
-    let headerIcon = '';
-    if (r.TxnType === 'Payment') {
-      headerIcon = '<svg viewBox="0 0 24 24" width="18" height="18" style="color:var(--success);flex-shrink:0;" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    }
+  const chevronSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
 
-    return '<div style="padding:12px 14px;">'
-      + '<div class="detail-amount-row">'
-      + headerIcon
-      + '<div class="detail-total">' + peso(total) + '</div>'
-      + '<div style="margin-left:auto;">' + (r.Direction === 'Debit'
-          ? '<span class="dir-debit">Debit</span>'
-          : '<span class="dir-credit">Credit</span>') + '</div>'
-      + '</div>'
-      + '<div class="section-header">Breakdown</div>'
-      + '<div class="detail-breakdown">'
-      + (rent  !== 0 ? '<div class="detail-breakdown-row"><span>Rent</span><strong>' + peso(rent) + '</strong></div>' : '')
-      + (elec  !== 0 ? '<div class="detail-breakdown-row"><span>Electric</span><strong>' + peso(elec) + '</strong></div>' : '')
-      + (water !== 0 ? '<div class="detail-breakdown-row"><span>Water</span><strong>' + peso(water) + '</strong></div>' : '')
-      + '</div>'
-      + '<div class="section-header">Details</div>'
-      + '<div class="detail-row"><span class="detail-label">TxnID</span><span class="detail-value" style="font-family:monospace;font-size:11px;">' + escHtml(r.TxnID || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">' + escHtml(r.TenantName || r.TenantID || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Unit</span><span class="detail-value">' + escHtml(r.UnitDisplayName || r.UnitID || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Billing Month</span><span class="detail-value">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">' + typeBadge(r.TxnType) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Direction</span><span class="detail-value">' + (r.Direction === 'Debit' ? '<span class="dir-debit">Debit</span>' : '<span class="dir-credit">Credit</span>') + '</span></div>'
-      + (mode  ? '<div class="detail-row"><span class="detail-label">Payment Mode</span><span class="detail-value">' + escHtml(mode) + '</span></div>' : '')
-      + (ref   ? '<div class="detail-row"><span class="detail-label">Reference No.</span><span class="detail-value"><span class="ref-mono">' + escHtml(ref) + '</span></span></div>' : '')
-      + (notes ? '<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">' + escHtml(notes) + '</span></div>' : '')
-      + '</div>';
+  function amountColor(type) {
+    if (type === 'Payment') return 'var(--text-primary)';
+    if (type === 'Credit')  return 'var(--success, #16a34a)';
+    return 'var(--text-muted)';
   }
 
   function renderLedger(rows) {
-    const tableWrap = document.getElementById('tableWrap');
+    const tableWrap  = document.getElementById('tableWrap');
     const emptyState = document.getElementById('emptyState');
 
     // Sort rows by Date
@@ -599,123 +420,72 @@
     }
     emptyState.classList.add('hidden');
 
-    const arrowChar = sortDir === 'desc' ? '↓' : '↑';
+    const arrowChar = sortDir === 'desc' ? '&#8595;' : '&#8593;';
 
-    tableWrap.innerHTML = '<table>'
-      + '<thead><tr>'
-      + '<th id="dateColHeader" style="cursor:pointer;user-select:none;white-space:nowrap;">Date <span id="dateSortArrow">' + arrowChar + '</span></th>'
-      + '<th class="col-desktop">TxnID</th>'
-      + '<th>Tenant</th>'
-      + '<th class="col-desktop">Unit</th>'
-      + '<th class="col-desktop">Month</th>'
-      + '<th>Type</th>'
-      + '<th class="col-desktop col-amount">Rent</th>'
-      + '<th class="col-desktop col-amount">Elec</th>'
-      + '<th class="col-desktop col-amount">Water</th>'
-      + '<th style="text-align:right;">Total</th>'
-      + '<th class="col-desktop">Dir</th>'
-      + '<th class="col-desktop">Mode</th>'
-      + '<th class="col-desktop">Ref</th>'
-      + '</tr></thead>'
-      + '<tbody>'
-      + rows.map((r, idx) => {
-          const dirClass = r.Direction === 'Debit' ? 'dir-debit' : 'dir-credit';
-          const ref = String(r.ReferenceNo || '');
-          const txnFull  = r.TxnID || '—';
-          const txnShort = txnFull.length > 20 ? txnFull.substring(0, 20) + '…' : txnFull;
-          return '<tr class="ledger-tr" data-idx="' + idx + '">'
-            + '<td style="white-space:nowrap;font-size:11px;">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</td>'
-            + '<td class="col-desktop"><span class="txn-id-badge" title="' + escHtml(txnFull) + '">' + escHtml(txnShort) + '</span></td>'
-            + '<td style="font-size:12px;">' + escHtml(r.TenantName || r.TenantID || '—') + '</td>'
-            + '<td class="col-desktop" style="font-size:12px;white-space:nowrap;">' + escHtml(r.UnitDisplayName || r.UnitID || '—') + '</td>'
-            + '<td class="col-desktop" style="font-size:11px;white-space:nowrap;">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</td>'
-            + '<td>' + typeBadge(r.TxnType) + '</td>'
-            + '<td class="col-desktop col-amount">' + amountCell(r.RentAmount)  + '</td>'
-            + '<td class="col-desktop col-amount">' + amountCell(r.ElecAmount)  + '</td>'
-            + '<td class="col-desktop col-amount">' + amountCell(r.WaterAmount) + '</td>'
-            + '<td class="col-amount">' + amountCell(r.TotalAmount) + '</td>'
-            + '<td class="col-desktop ' + dirClass + '">' + escHtml(r.Direction || '—') + '</td>'
-            + '<td class="col-desktop" style="font-size:11px;color:var(--text-muted);">' + escHtml(r.PaymentMode || '') + '</td>'
-            + '<td class="col-desktop">' + (ref ? '<span class="ref-mono">' + escHtml(ref) + '</span>' : '') + '</td>'
-            + '</tr>'
-            + '<tr class="ledger-acc-row"><td colspan="13"><div class="acc-detail" id="acc-' + idx + '">' + accDetailHtml(r) + '</div></td></tr>';
-        }).join('')
-      + '</tbody></table>';
+    let html = '<button class="ledger-sort-btn" id="dateSortBtn">DATE <span id="dateSortArrow">' + arrowChar + '</span></button>';
+
+    rows.forEach((r, idx) => {
+      const dateStr    = formatDate(String(r.Date || '').substring(0, 10));
+      const badge      = typeBadge(r.TxnType);
+      const amt        = peso(parseFloat(r.TotalAmount) || 0);
+      const color      = amountColor(r.TxnType);
+      const tenant     = escHtml(r.TenantName || r.TenantID || '—');
+      const unit       = escHtml(r.UnitDisplayName || r.UnitID || '—');
+      const month      = escHtml(String(r.BillingMonth || '—').substring(0, 7));
+      const ref        = String(r.ReferenceNo || '');
+      const mode       = String(r.PaymentMode || '');
+      const notes      = String(r.Notes || '');
+      const txnId      = String(r.TxnID || '—');
+      const direction  = r.Direction === 'Debit'
+        ? '<span class="dir-debit">Debit</span>'
+        : '<span class="dir-credit">Credit</span>';
+
+      let accInner = '<div class="ledger-acc-inner">'
+        + '<div class="ledger-acc-row-item"><span class="ledger-acc-label">TxnID</span><span class="ledger-acc-value ledger-acc-value--mono">' + escHtml(txnId) + '</span></div>'
+        + (ref   ? '<div class="ledger-acc-row-item"><span class="ledger-acc-label">Ref No</span><span class="ledger-acc-value">' + escHtml(ref) + '</span></div>' : '')
+        + (notes ? '<div class="ledger-acc-row-item"><span class="ledger-acc-label">Notes</span><span class="ledger-acc-value">' + escHtml(notes) + '</span></div>' : '')
+        + '<div class="ledger-acc-row-item"><span class="ledger-acc-label">Direction</span><span class="ledger-acc-value">' + direction + '</span></div>'
+        + (mode  ? '<div class="ledger-acc-row-item"><span class="ledger-acc-label">Mode</span><span class="ledger-acc-value">' + escHtml(mode) + '</span></div>' : '')
+        + '</div>';
+
+      html += '<div class="ledger-card" data-idx="' + idx + '">'
+        + '<div class="ledger-card-row1">'
+        + '<span class="ledger-card-date">' + escHtml(dateStr) + '</span>'
+        + '<span class="ledger-card-badge">' + badge + '</span>'
+        + '<span class="ledger-card-amount" style="color:' + color + ';">' + amt + '</span>'
+        + '<span class="ledger-card-chevron" id="chev-' + idx + '">' + chevronSvg + '</span>'
+        + '</div>'
+        + '<div class="ledger-card-row2">' + tenant + ' &middot; ' + unit + ' &middot; ' + month + '</div>'
+        + '</div>'
+        + '<div class="ledger-acc-body" id="acc-' + idx + '">' + accInner + '</div>';
+    });
+
+    tableWrap.innerHTML = html;
 
     // Bind date sort toggle
-    document.getElementById('dateColHeader').addEventListener('click', () => {
+    document.getElementById('dateSortBtn').addEventListener('click', () => {
       sortDir = sortDir === 'desc' ? 'asc' : 'desc';
       renderLedger(allRows);
     });
 
-    // Bind accordion row listeners
-    tableWrap.querySelectorAll('tbody tr.ledger-tr').forEach(row => {
-      row.addEventListener('click', () => {
-        const idx = parseInt(row.dataset.idx, 10);
+    // Bind card accordion listeners — one open at a time
+    tableWrap.querySelectorAll('.ledger-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const idx = parseInt(card.dataset.idx, 10);
         if (isNaN(idx)) return;
-        const accDiv = document.getElementById('acc-' + idx);
-        const isOpen = accDiv.classList.contains('open');
-        // Close all open accordions
-        tableWrap.querySelectorAll('.acc-detail.open').forEach(el => el.classList.remove('open'));
+        const accBody = document.getElementById('acc-' + idx);
+        const chevron = document.getElementById('chev-' + idx);
+        const isOpen  = accBody.classList.contains('open');
+        // Close all
+        tableWrap.querySelectorAll('.ledger-acc-body.open').forEach(el => el.classList.remove('open'));
+        tableWrap.querySelectorAll('.ledger-card-chevron.open').forEach(el => el.classList.remove('open'));
         // Toggle this one
-        if (!isOpen) accDiv.classList.add('open');
+        if (!isOpen) {
+          accBody.classList.add('open');
+          chevron.classList.add('open');
+        }
       });
     });
-  }
-
-  function openTxnDetail(r) {
-    let title = 'Transaction';
-    let headerIcon = '';
-    if (r.TxnType === 'Bill') {
-      title = 'Bill for ' + String(r.BillingMonth || '').substring(0, 7);
-    } else if (r.TxnType === 'Payment') {
-      title = 'Payment Received';
-      headerIcon = '<svg viewBox="0 0 24 24" width="18" height="18" style="color:var(--success);flex-shrink:0;" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    } else if (r.TxnType === 'Credit') {
-      title = 'Credit';
-    } else if (r.TxnType === 'Adjustment') {
-      title = 'Adjustment';
-    }
-    document.getElementById('txnPanelTitle').textContent = title;
-
-    const rent  = parseFloat(r.RentAmount)  || 0;
-    const elec  = parseFloat(r.ElecAmount)  || 0;
-    const water = parseFloat(r.WaterAmount) || 0;
-    const total = parseFloat(r.TotalAmount) || 0;
-
-    const ref   = String(r.ReferenceNo  || '');
-    const mode  = String(r.PaymentMode  || '');
-    const notes = String(r.Notes        || '');
-
-    document.getElementById('txnPanelBody').innerHTML =
-      '<div class="detail-amount-row">'
-      + headerIcon
-      + '<div class="detail-total">' + peso(total) + '</div>'
-      + '<div style="margin-left:auto;">' + (r.Direction === 'Debit'
-          ? '<span class="dir-debit">Debit</span>'
-          : '<span class="dir-credit">Credit</span>') + '</div>'
-      + '</div>'
-
-      + '<div class="section-header">Breakdown</div>'
-      + '<div class="detail-breakdown">'
-      + (rent  !== 0 ? '<div class="detail-breakdown-row"><span>Rent</span><strong>' + peso(rent) + '</strong></div>' : '')
-      + (elec  !== 0 ? '<div class="detail-breakdown-row"><span>Electric</span><strong>' + peso(elec) + '</strong></div>' : '')
-      + (water !== 0 ? '<div class="detail-breakdown-row"><span>Water</span><strong>' + peso(water) + '</strong></div>' : '')
-      + '</div>'
-
-      + '<div class="section-header">Details</div>'
-      + '<div class="detail-row"><span class="detail-label">TxnID</span><span class="detail-value" style="font-family:monospace;font-size:11px;">' + escHtml(r.TxnID || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">' + escHtml(String(r.Date || '—').substring(0, 10)) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">' + escHtml(r.TenantName || r.TenantID || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Unit</span><span class="detail-value">' + escHtml(r.UnitDisplayName || r.UnitID || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Billing Month</span><span class="detail-value">' + escHtml(String(r.BillingMonth || '—').substring(0, 7)) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">' + typeBadge(r.TxnType) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Direction</span><span class="detail-value">' + (r.Direction === 'Debit' ? '<span class="dir-debit">Debit</span>' : '<span class="dir-credit">Credit</span>') + '</span></div>'
-      + (mode  ? '<div class="detail-row"><span class="detail-label">Payment Mode</span><span class="detail-value">' + escHtml(mode) + '</span></div>' : '')
-      + (ref   ? '<div class="detail-row"><span class="detail-label">Reference No.</span><span class="detail-value"><span class="ref-mono">' + escHtml(ref) + '</span></span></div>' : '')
-      + (notes ? '<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">' + escHtml(notes) + '</span></div>' : '');
-
-    document.getElementById('txnPanel').classList.add('open');
   }
 
   // Filters
@@ -725,15 +495,6 @@
     document.getElementById('filterUnit').value   = '';
     document.getElementById('filterMonth').value  = currentMonthStr;
     loadLedger();
-  });
-
-  // Panel close
-  document.getElementById('txnPanelClose').addEventListener('click', () => {
-    document.getElementById('txnPanel').classList.remove('open');
-  });
-  document.getElementById('txnPanel').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('txnPanel'))
-      document.getElementById('txnPanel').classList.remove('open');
   });
 
   async function loadPendingCount() {

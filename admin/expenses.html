@@ -166,21 +166,15 @@
     .expense-acc-row { background:var(--bg-subtle,#f9fafb); }
     .expense-acc-row td { padding:0 !important; }
     /* Accordion inner content */
-    .acc-inner {
-      padding: 14px 16px;
-    }
-    .acc-detail-amount {
-      font-family: 'Satoshi', 'Inter', sans-serif;
-      font-weight: 700;
-      font-size: 18px;
-      color: var(--text-primary);
-      margin-bottom: 10px;
-    }
-    .acc-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 14px;
-    }
+    .expense-acc-inner { padding: 10px 12px 12px 12px; }
+    .expense-acc-detail-row { display: flex; gap: 8px; font-size: 12px; margin-bottom: 8px; }
+    .expense-acc-label { color: var(--text-muted); font-size: 11px; min-width: 60px; }
+    .expense-acc-value { color: var(--text-secondary); font-size: 12px; }
+    .expense-acc-actions { display: flex; gap: 8px; margin-top: 4px; }
+    /* Chevron */
+    .expense-chevron-cell { padding: 0 8px; text-align: center; }
+    .expense-chevron { transition: transform 250ms ease; }
+    .expense-chevron.open { transform: rotate(90deg); }
     /* Confirm modal */
     .confirm-overlay {
       position: fixed; inset: 0;
@@ -363,7 +357,7 @@
     <div class="panel-footer">
       <button class="btn btn--accent btn--full" id="addExpenseSubmit">
         <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        Save Expense
+        Add Expense
       </button>
     </div>
   </div>
@@ -469,7 +463,7 @@
     editExpenseId = null;
     document.getElementById('addPanelTitle').textContent = 'Add Expense';
     document.getElementById('addExpenseSubmit').innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Expense';
+      '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Add Expense';
     document.getElementById('expDate').value = now.toISOString().substring(0, 10);
     document.getElementById('expCategory').value = '';
     document.getElementById('expAmount').value = '';
@@ -538,22 +532,14 @@
   function buildAccordionContent(e) {
     const notes = String(e.Notes || '');
     const idx = allExpenses.indexOf(e);
-    return '<div class="acc-inner">'
-      + '<div class="acc-detail-amount">' + peso(e.Amount) + '</div>'
-      + '<div class="detail-row"><span class="detail-label">Date</span><span class="detail-value">' + escHtml(formatDate(e.Date)) + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Category</span><span class="detail-value"><span class="' + catBadgeClass(e.Category) + '">' + escHtml(e.Category || '—') + '</span></span></div>'
-      + '<div class="detail-row"><span class="detail-label">Payee</span><span class="detail-value">' + escHtml(e.Payee || '—') + '</span></div>'
-      + '<div class="detail-row"><span class="detail-label">Expense ID</span><span class="detail-value" style="font-family:monospace;font-size:11px;">' + escHtml(e.ExpenseID || '—') + '</span></div>'
-      + (notes ? '<div class="detail-row"><span class="detail-label">Notes</span><span class="detail-value">' + escHtml(notes) + '</span></div>' : '')
-      + '<div class="acc-actions">'
-      + '<button class="btn btn--sm btn--outline acc-edit-btn" data-idx="' + idx + '">'
-      + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
-      + ' Edit'
-      + '</button>'
-      + '<button class="btn btn--sm btn--danger acc-delete-btn" data-idx="' + idx + '">'
-      + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
-      + ' Delete'
-      + '</button>'
+    return '<div class="expense-acc-inner">'
+      + '<div class="expense-acc-detail-row">'
+      + '<span class="expense-acc-label">Notes</span>'
+      + '<span class="expense-acc-value">' + escHtml(notes || '—') + '</span>'
+      + '</div>'
+      + '<div class="expense-acc-actions">'
+      + '<button class="btn btn--outline btn--sm acc-edit-btn" data-idx="' + idx + '">Edit</button>'
+      + '<button class="btn btn--ghost btn--sm acc-delete-btn" style="color:var(--danger);" data-idx="' + idx + '">Delete</button>'
       + '</div>'
       + '</div>';
   }
@@ -621,20 +607,19 @@
     const dotSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">'
       + '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>'
       + '</svg>';
+    const chevronSvg = '<svg class="expense-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
 
     let rows = '';
     expenses.forEach((e, idx) => {
-      const notes = String(e.Notes || '');
-      const notesTrunc = notes.length > 40 ? notes.substring(0, 40) + '…' : notes;
       rows += '<tr class="expense-tr" data-idx="' + idx + '">'
         + '<td style="white-space:nowrap;">' + escHtml(formatDate(e.Date)) + '</td>'
         + '<td><span class="' + catBadgeClass(e.Category) + '">' + escHtml(e.Category || '—') + '</span></td>'
         + '<td>' + escHtml(e.Payee || '—') + '</td>'
         + '<td class="col-amount-right">' + peso(e.Amount) + '</td>'
-        + '<td><div class="notes-truncated">' + escHtml(notesTrunc || '—') + '</div></td>'
         + '<td style="text-align:right;padding:6px 8px;"><div class="expense-dot-wrap">'
         + '<button class="expense-dot-btn" data-idx="' + idx + '" aria-label="Options">' + dotSvg + '</button>'
         + '</div></td>'
+        + '<td class="expense-chevron-cell">' + chevronSvg + '</td>'
         + '</tr>'
         + '<tr class="expense-acc-row"><td colspan="6"><div class="expense-acc-body" id="eacc-' + idx + '">'
         + buildAccordionContent(e)
@@ -643,11 +628,11 @@
 
     tableWrap.innerHTML = '<table>'
       + '<thead><tr>'
-      + '<th>Date</th><th>Category</th><th>Payee</th><th style="text-align:right;">Amount</th><th>Notes</th><th></th>'
+      + '<th>Date</th><th>Category</th><th>Payee</th><th style="text-align:right;">Amount</th><th></th><th>&#8250;</th>'
       + '</tr></thead>'
       + '<tbody>' + rows + '</tbody></table>';
 
-    // Row click — toggle accordion (not on dot button)
+    // Row click — toggle accordion (not on dot button or chevron cell directly)
     tableWrap.querySelectorAll('tbody tr.expense-tr').forEach(row => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('.expense-dot-wrap')) return;
@@ -655,18 +640,26 @@
         if (isNaN(idx)) return;
         const accBody = document.getElementById('eacc-' + idx);
         if (!accBody) return;
+        const chevron = row.querySelector('.expense-chevron');
 
         if (openAccIdx === idx) {
           // Collapse same row
           accBody.classList.remove('open');
+          if (chevron) chevron.classList.remove('open');
           openAccIdx = null;
         } else {
           // Close previously open
           if (openAccIdx !== null) {
             const prev = document.getElementById('eacc-' + openAccIdx);
             if (prev) prev.classList.remove('open');
+            const prevRow = tableWrap.querySelector('tr.expense-tr[data-idx="' + openAccIdx + '"]');
+            if (prevRow) {
+              const prevChevron = prevRow.querySelector('.expense-chevron');
+              if (prevChevron) prevChevron.classList.remove('open');
+            }
           }
           accBody.classList.add('open');
+          if (chevron) chevron.classList.add('open');
           openAccIdx = idx;
         }
         closeAllDotMenus();
@@ -717,12 +710,14 @@
     tableWrap.addEventListener('click', (e) => {
       const editBtn = e.target.closest('.acc-edit-btn');
       if (editBtn) {
+        e.stopPropagation();
         const idx = parseInt(editBtn.dataset.idx, 10);
         if (!isNaN(idx)) openEditExpense(allExpenses[idx]);
         return;
       }
       const delBtn = e.target.closest('.acc-delete-btn');
       if (delBtn) {
+        e.stopPropagation();
         const idx = parseInt(delBtn.dataset.idx, 10);
         if (!isNaN(idx)) openDeleteConfirm(allExpenses[idx].ExpenseID);
       }
@@ -836,7 +831,7 @@
       if (isEditMode) {
         this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Changes';
       } else {
-        this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Save Expense';
+        this.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Add Expense';
       }
     }
   });
