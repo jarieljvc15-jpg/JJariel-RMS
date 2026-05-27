@@ -703,6 +703,7 @@ function submitPaymentProof(body) {
   var imageUrl    = String(body.driveUrl    || body.imageUrl || "").trim();
   var notes       = String(body.notes       || "").trim();
   var submittedAt = String(body.submittedAt || "").trim() || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
+  var unitNameIn  = String(body.unitName    || "").trim();
 
   if (!tenantId)       throw new Error("tenantId is required");
   if (!referenceNo)    throw new Error("referenceNo is required");
@@ -714,6 +715,18 @@ function submitPaymentProof(body) {
   var tenantName = tenant["Name"] || tenantId;
 
   var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+  var billingMonth = String(body.billingMonth || "").trim() || currentMonth;
+
+  var unitName = unitNameIn;
+  if (!unitName && unitId) {
+    var allUnits = sheetToJSON(getSheet("Units"));
+    for (var ui = 0; ui < allUnits.length; ui++) {
+      if (String(allUnits[ui]["UnitID"]) === unitId) {
+        unitName = String(allUnits[ui]["UnitName"] || "").trim();
+        break;
+      }
+    }
+  }
 
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName("PaymentProofs");
@@ -734,6 +747,7 @@ function submitPaymentProof(body) {
     UnitID:       unitId,
     TenantName:   tenantName,
     UnitName:     unitName,
+    BillingMonth: billingMonth,
     ReferenceNo:  referenceNo,
     AmountPaid:   amountPaid,
     DriveURL:     driveUrl,
@@ -2087,7 +2101,7 @@ function getTenantBillPreview(params) {
     for (var i = 0; i < units.length; i++) {
       if (String(units[i]["UnitID"]) === unitId) { unit = units[i]; break; }
     }
-    if (unit) unitRate = parseFloat(unit["RentAmount"] || unit["Rate"] || 0);
+    if (unit) unitRate = parseFloat(unit["MonthlyRate"] || 0);
   }
 
   // Latest utility reading for this unit
