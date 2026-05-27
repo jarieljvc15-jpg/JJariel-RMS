@@ -28,8 +28,9 @@ function doGet(e) {
       case "getAllProofs":      return respond(getAllProofs(params));
       case "checkExistingBill": return respond(checkExistingBill(params));
       case "getProofs":        return respond(getProofs(params));
-      case "getTenantHistory": return respond(getTenantHistory(params));
-      case "getConfig":        return respond(getConfig());
+      case "getTenantHistory":     return respond(getTenantHistory(params));
+      case "getConfig":            return respond(getConfig());
+      case "getTenantBillPreview": return respond(getTenantBillPreview(params));
       default:
         return respond(null, "Unknown action: " + action);
     }
@@ -1078,66 +1079,6 @@ function getAllProofs(params) {
   return getProofs(params);
 }
 
-function getTenantHistory(params) {
-  var tenantId = String(params.tenantId || "").trim();
-  var month    = String(params.month    || "").trim();
-  if (!tenantId) return [];
-
-  var ledger = sheetToJSON(getSheet("Ledger")).filter(function(r) {
-    return String(r["TenantID"]) === tenantId;
-  });
-  if (month) {
-    ledger = ledger.filter(function(r) {
-      return String(r["BillingMonth"] || "").substring(0, 7) === month;
-    });
-  }
-
-  var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var proofSheet = ss.getSheetByName("PaymentProofs");
-  var proofs     = proofSheet ? sheetToJSON(proofSheet).filter(function(r) {
-    return String(r["TenantID"]) === tenantId;
-  }) : [];
-
-  var enriched = ledger.map(function(r) {
-    var row = {};
-    for (var k in r) { if (r.hasOwnProperty(k)) row[k] = r[k]; }
-    row.proofStatus   = null;
-    row.declineReason = null;
-
-    if (String(r["TxnType"]) === "Payment") {
-      var amt = parseFloat(r["TotalAmount"]) || 0;
-      var mon = String(r["BillingMonth"] || "").substring(0, 7);
-      var match = null;
-      for (var i = 0; i < proofs.length; i++) {
-        var p    = proofs[i];
-        var pAmt = parseFloat(p["Amount"] || p["AmountPaid"] || 0);
-        var pMon = String(p["BillingMonth"] || "").substring(0, 7);
-        if (Math.abs(pAmt - amt) < 0.01 && pMon === mon) { match = p; break; }
-      }
-      if (match) {
-        var st = String(match["Status"] || "Pending");
-        row.proofStatus = st;
-        if (st === "Declined") {
-          row.declineReason = String(match["DeclineReason"] || match["ReviewNote"] || "");
-        }
-      } else {
-        row.proofStatus = "Admin Recorded";
-      }
-    }
-    return row;
-  });
-
-  enriched.sort(function(a, b) {
-    var da = String(a["Date"] || "");
-    var db = String(b["Date"] || "");
-    return da < db ? 1 : da > db ? -1 : 0;
-  });
-  return enriched;
-}
-
-
-
-
 function editPayment(body) {
   var submissionId = String(body.submissionId || "").trim();
   var rentAmount   = parseFloat(body.rentAmount)  || 0;
@@ -2033,4 +1974,155 @@ function updateTenant(body) {
   }
 
   throw new Error("Tenant not found");
+}
+
+// ============================================================
+// TENANT PORTAL
+// ============================================================
+
+function getTenantHistory(params) {
+  if (!params.tenantId) throw new Error("tenantId is required");
+  var tenantId = String(params.tenantId);
+  var monthFilter = params.month ? normMonth(params.month) : null;
+
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  // Payment proofs (pending, approved, declined)
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  var proofs = proofSheet ? sheetToJSON(proofSheet) : [];
+  proofs = proofs.filter(function(p) {
+    if (String(p["TenantID"]) !== tenantId) return false;
+    if (monthFilter && normMonth(p["BillingMonth"]) !== monthFilter) return false;
+    return true;
+  });
+
+  // Ledger: bills and credits only (approved payments are already linked to proofs)
+  var ledger = sheetToJSON(getSheet("Ledger")).filter(function(r) {
+    if (String(r["TenantID"]) !== tenantId) return false;
+    if (monthFilter && normMonth(r["BillingMonth"]) !== monthFilter) return false;
+    return true;
+  });
+  var bills   = ledger.filter(function(r) { return r["TxnType"] === "Bill"   && r["Direction"] === "Debit";  });
+  var credits = ledger.filter(function(r) { return r["Direction"] === "Credit" && r["TxnType"] !== "Payment"; });
+
+  var payments = proofs.map(function(p) {
+    return {
+      _type:         "Payment",
+      date:          String(p["SubmittedAt"] || p["ReviewedAt"] || ""),
+      billingMonth:  normMonth(p["BillingMonth"] || ""),
+      amount:        parseFloat(p["AmountPaid"] || p["Amount"] || 0),
+      status:        String(p["Status"] || "Pending"),
+      declineReason: String(p["DeclineReason"] || ""),
+      paymentMode:   String(p["PaymentMode"] || ""),
+      referenceNo:   String(p["ReferenceNo"] || ""),
+      notes:         String(p["Notes"] || ""),
+      submissionId:  String(p["SubmissionID"] || p["ProofID"] || "")
+    };
+  });
+
+  var billItems = bills.map(function(r) {
+    return {
+      _type:        "Bill",
+      date:         String(r["Date"] || ""),
+      billingMonth: normMonth(r["BillingMonth"] || ""),
+      amount:       parseFloat(r["TotalAmount"] || 0),
+      rentAmount:   parseFloat(r["RentAmount"]  || 0),
+      elecAmount:   parseFloat(r["ElecAmount"]  || 0),
+      waterAmount:  parseFloat(r["WaterAmount"] || 0),
+      txnId:        String(r["TxnID"] || "")
+    };
+  });
+
+  var creditItems = credits.map(function(r) {
+    return {
+      _type:        "Credit",
+      date:         String(r["Date"] || ""),
+      billingMonth: normMonth(r["BillingMonth"] || ""),
+      amount:       parseFloat(r["TotalAmount"] || 0),
+      notes:        String(r["Notes"] || ""),
+      txnId:        String(r["TxnID"] || "")
+    };
+  });
+
+  var all = payments.concat(billItems).concat(creditItems);
+  all.sort(function(a, b) {
+    var da = String(a.date || "");
+    var db = String(b.date || "");
+    return da < db ? 1 : da > db ? -1 : 0;
+  });
+  return all;
+}
+
+function getTenantBillPreview(params) {
+  if (!params.tenantId) throw new Error("tenantId is required");
+  var tenantId = String(params.tenantId);
+  var unitId   = String(params.unitId || "");
+
+  var balance = computeBalance(tenantId);
+
+  // Unpaid bills: all Bill/Debit ledger rows, newest first
+  var ledger = sheetToJSON(getSheet("Ledger")).filter(function(r) {
+    return String(r["TenantID"]) === tenantId;
+  });
+  var unpaidBills = ledger
+    .filter(function(r) { return r["TxnType"] === "Bill" && r["Direction"] === "Debit"; })
+    .map(function(r) {
+      return {
+        billingMonth: normMonth(r["BillingMonth"] || ""),
+        amount:       parseFloat(r["TotalAmount"] || 0),
+        rentAmount:   parseFloat(r["RentAmount"]  || 0),
+        elecAmount:   parseFloat(r["ElecAmount"]  || 0),
+        waterAmount:  parseFloat(r["WaterAmount"] || 0)
+      };
+    })
+    .sort(function(a, b) {
+      return a.billingMonth < b.billingMonth ? 1 : a.billingMonth > b.billingMonth ? -1 : 0;
+    });
+
+  // Unit rate
+  var unitRate = 0;
+  if (unitId) {
+    var units = sheetToJSON(getSheet("Units"));
+    var unit  = null;
+    for (var i = 0; i < units.length; i++) {
+      if (String(units[i]["UnitID"]) === unitId) { unit = units[i]; break; }
+    }
+    if (unit) unitRate = parseFloat(unit["RentAmount"] || unit["Rate"] || 0);
+  }
+
+  // Latest utility reading for this unit
+  var latestUtilities = null;
+  if (unitId) {
+    var readings = sheetToJSON(getSheet("UtilityReadings")).filter(function(r) {
+      return String(r["UnitID"]) === unitId;
+    });
+    readings.sort(function(a, b) {
+      var ma = normMonth(a["BillingMonth"] || "");
+      var mb = normMonth(b["BillingMonth"] || "");
+      return ma < mb ? 1 : ma > mb ? -1 : 0;
+    });
+    if (readings.length) {
+      var latest = readings[0];
+      latestUtilities = {
+        electricKwh:    parseFloat(latest["ElecConsumption"]  || 0),
+        electricCharge: parseFloat(latest["ElecCharge"]       || 0),
+        waterM3:        parseFloat(latest["WaterConsumption"] || 0),
+        waterCharge:    parseFloat(latest["WaterCharge"]      || 0),
+        asOf:           normMonth(latest["BillingMonth"]      || "")
+      };
+    }
+  }
+
+  // Next calendar month
+  var now = new Date();
+  var nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  var nextMonth = nextMonthDate.getFullYear() + "-" + String(nextMonthDate.getMonth() + 1).padStart(2, "0");
+
+  return {
+    currentBalance:  balance.total,
+    unpaidBills:     unpaidBills,
+    unitRate:        unitRate,
+    latestUtilities: latestUtilities,
+    nextMonth:       nextMonth
+  };
 }
