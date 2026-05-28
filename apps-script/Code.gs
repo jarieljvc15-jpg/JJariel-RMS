@@ -1292,7 +1292,7 @@ function approveProof(body) {
 }
 
 function rejectProof(body) {
-  var submissionId  = String(body.submissionId  || "").trim();
+  var submissionId  = String(body.proofId || body.submissionId || "").trim();
   var declineReason = String(body.declineReason || "").trim();
   if (!submissionId)  throw new Error("submissionId is required");
   if (!declineReason) throw new Error("declineReason is required");
