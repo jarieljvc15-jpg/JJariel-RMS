@@ -696,14 +696,17 @@ function uploadProof(e) {
 }
 
 function submitPaymentProof(body) {
-  var tenantId    = String(body.tenantId    || "").trim();
-  var unitId      = String(body.unitId      || "").trim();
-  var referenceNo = String(body.referenceNo || "").trim();
-  var amountPaid  = parseFloat(body.amountPaid) || 0;
-  var imageUrl    = String(body.driveUrl    || body.imageUrl || "").trim();
-  var notes       = String(body.notes       || "").trim();
-  var submittedAt = String(body.submittedAt || "").trim() || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
-  var unitNameIn  = String(body.unitName    || "").trim();
+  var tenantId     = String(body.tenantId     || "").trim();
+  var unitId       = String(body.unitId       || "").trim();
+  var unitName     = String(body.unitName     || "").trim();
+  var billingMonth = String(body.billingMonth || "").trim();
+  var referenceNo  = String(body.referenceNo  || "").trim();
+  var amountPaid   = parseFloat(body.amountPaid) || 0;
+  var imageUrl     = String(body.driveUrl     || body.imageUrl || "").trim();
+  var notes        = String(body.notes        || "").trim();
+  var paymentMode  = String(body.paymentMode  || "GCash").trim();
+  var submittedAt  = String(body.submittedAt  || "").trim()
+    || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
 
   if (!tenantId)       throw new Error("tenantId is required");
   if (!referenceNo)    throw new Error("referenceNo is required");
@@ -714,10 +717,6 @@ function submitPaymentProof(body) {
   if (!tenant) throw new Error("Tenant not found");
   var tenantName = tenant["Name"] || tenantId;
 
-  var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
-  var billingMonth = String(body.billingMonth || "").trim() || currentMonth;
-
-  var unitName = unitNameIn;
   if (!unitName && unitId) {
     var allUnits = sheetToJSON(getSheet("Units"));
     for (var ui = 0; ui < allUnits.length; ui++) {
@@ -728,58 +727,57 @@ function submitPaymentProof(body) {
     }
   }
 
+  var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+  if (!billingMonth) billingMonth = currentMonth;
+
   var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheet = ss.getSheetByName("PaymentProofs");
   if (!sheet) {
     sheet = ss.insertSheet("PaymentProofs");
-    sheet.appendRow(["ProofID","TenantID","TenantName","UnitID","Amount","ReferenceNo",
-                     "Notes","BillingMonth","BillType","ImageUrl","Status","SubmittedAt",
-                     "DeclineReason","ReviewedAt"]);
+    sheet.appendRow(["ProofID","TenantID","TenantName","UnitID","UnitName","AmountPaid","ReferenceNo",
+                     "Notes","BillingMonth","PaymentMode","BillType","DriveURL","Status","SubmittedAt",
+                     "DeclineReason","ReviewedAt","ReviewNote","LedgerTxnID"]);
   }
 
   var cfg          = getConfig();
-  var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-
   var submissionId = "PROOF-" + Date.now();
+
   appendSheetRow(sheet, {
-    SubmissionID: submissionId,
+    ProofID:      submissionId,
     TenantID:     tenantId,
-    UnitID:       unitId,
     TenantName:   tenantName,
+    UnitID:       unitId,
     UnitName:     unitName,
-    BillingMonth: billingMonth,
-    ReferenceNo:  referenceNo,
     AmountPaid:   amountPaid,
-    DriveURL:     driveUrl,
+    ReferenceNo:  referenceNo,
     Notes:        notes,
-    SubmittedAt:  submittedAt,
+    BillingMonth: billingMonth,
+    PaymentMode:  paymentMode,
+    DriveURL:     imageUrl,
     Status:       "Pending",
+    SubmittedAt:  submittedAt,
     ReviewedAt:   "",
     ReviewNote:   "",
     LedgerTxnID:  ""
   });
 
-  var adminEmail  = String(cfg["AdminEmail"]  || "").trim();
-  var tenantEmail = String(tenant["Email"]    || "").trim();
+  var proofData = {
+    proofId:      submissionId,
+    tenantId:     tenantId,
+    tenantName:   tenantName,
+    unitId:       unitId,
+    unitName:     unitName,
+    billingMonth: billingMonth,
+    amountPaid:   amountPaid,
+    referenceNo:  referenceNo,
+    notes:        notes,
+    paymentMode:  paymentMode,
+    imageUrl:     imageUrl,
+    submittedAt:  submittedAt
+  };
 
-  if (adminEmail) {
-    try {
-      GmailApp.sendEmail(adminEmail,
-        "Payment Pending Review — " + unitName,
-        "₱" + amountPaid.toFixed(2) + " from " + tenantName + " (" + unitName + ") is pending review.\n"
-          + "Ref: " + referenceNo + ".\n"
-          + "Please review and approve or reject in the Approvals page.");
-    } catch (e) { Logger.log("submitPaymentProof admin email failed: " + e.message); }
-  }
-
-  if (tenantEmail) {
-    try {
-      GmailApp.sendEmail(tenantEmail,
-        "Payment Received — " + unitName,
-        "Your payment of ₱" + amountPaid.toFixed(2) + " (Ref: " + referenceNo + ") has been received and is pending review.\n"
-          + "Contact your landlord if you have questions.");
-    } catch (e) { Logger.log("submitPaymentProof tenant email failed: " + e.message); }
-  }
+  try { sendSubmissionConfirmationEmail(tenant, proofData, cfg); }
+  catch (e) { Logger.log("submitPaymentProof email failed: " + e.message); }
 
   return { submissionId: submissionId };
 }
@@ -1241,37 +1239,47 @@ function voidPayment(body) {
 }
 
 function approveProof(body) {
-  var submissionId = String(body.submissionId || "").trim();
-  if (!submissionId) throw new Error("submissionId is required");
+  var proofId = String(body.proofId || body.submissionId || "").trim();
+  if (!proofId) throw new Error("proofId is required");
 
   var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
   var proofSheet = ss.getSheetByName("PaymentProofs");
   if (!proofSheet) throw new Error("PaymentProofs sheet not found");
 
-  var proofData    = proofSheet.getDataRange().getValues();
-  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
-  var tenantIdCol   = proofHeaders.indexOf("TenantID");
-  var unitIdCol     = proofHeaders.indexOf("UnitID");
-  var tenantNameCol = proofHeaders.indexOf("TenantName");
-  var unitNameCol   = proofHeaders.indexOf("UnitName");
-  var amountCol     = proofHeaders.indexOf("AmountPaid");
-  var refNoCol      = proofHeaders.indexOf("ReferenceNo");
-  var notesCol      = proofHeaders.indexOf("Notes");
-  var statusCol     = proofHeaders.indexOf("Status");
-  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
-  var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
+  var proofRaw     = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofRaw[0].map(function(h) { return String(h).trim(); });
+  var sidCol          = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
+  var tenantIdCol     = proofHeaders.indexOf("TenantID");
+  var unitIdCol       = proofHeaders.indexOf("UnitID");
+  var tenantNameCol   = proofHeaders.indexOf("TenantName");
+  var unitNameCol     = proofHeaders.indexOf("UnitName");
+  var amountCol       = proofHeaders.indexOf("AmountPaid");
+  var refNoCol        = proofHeaders.indexOf("ReferenceNo");
+  var notesCol        = proofHeaders.indexOf("Notes");
+  var billingMonthCol = proofHeaders.indexOf("BillingMonth");
+  var payModeCol      = proofHeaders.indexOf("PaymentMode");
+  var submittedAtCol  = proofHeaders.indexOf("SubmittedAt");
+  var statusCol       = proofHeaders.indexOf("Status");
+  var reviewedAtCol   = proofHeaders.indexOf("ReviewedAt");
+  var txnIdCol        = proofHeaders.indexOf("LedgerTxnID");
 
   var proofRowNum = -1;
   var tenantId = "", unitId = "", amountPaid = 0, referenceNo = "", proofNotes = "";
-  for (var i = 1; i < proofData.length; i++) {
-    if (String(proofData[i][sidCol]) === submissionId) {
-      proofRowNum = i + 1;
-      tenantId    = String(proofData[i][tenantIdCol]   || "");
-      unitId      = String(proofData[i][unitIdCol]     || "");
-      amountPaid  = parseFloat(proofData[i][amountCol])  || 0;
-      referenceNo = String(proofData[i][refNoCol]      || "");
-      proofNotes  = String(proofData[i][notesCol]      || "");
+  var tenantNameProof = "", unitNameProof = "", billingMonthProof = "", paymentMode = "", submittedAt = "";
+  for (var i = 1; i < proofRaw.length; i++) {
+    if (String(proofRaw[i][sidCol]) === proofId) {
+      proofRowNum       = i + 1;
+      tenantId          = String(proofRaw[i][tenantIdCol]   || "");
+      unitId            = String(proofRaw[i][unitIdCol]     || "");
+      amountPaid        = parseFloat(proofRaw[i][amountCol])  || 0;
+      referenceNo       = String(proofRaw[i][refNoCol]      || "");
+      proofNotes        = notesCol        >= 0 ? String(proofRaw[i][notesCol]        || "") : "";
+      tenantNameProof   = tenantNameCol   >= 0 ? String(proofRaw[i][tenantNameCol]   || "") : "";
+      unitNameProof     = unitNameCol     >= 0 ? String(proofRaw[i][unitNameCol]     || "") : "";
+      billingMonthProof = billingMonthCol >= 0 ? String(proofRaw[i][billingMonthCol] || "") : "";
+      paymentMode       = payModeCol      >= 0 ? String(proofRaw[i][payModeCol]      || "") : "";
+      submittedAt       = submittedAtCol  >= 0 ? String(proofRaw[i][submittedAtCol]  || "") : "";
       break;
     }
   }
@@ -1279,58 +1287,100 @@ function approveProof(body) {
 
   var today        = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
   var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
+  var cfg          = getConfig();
+
+  var balanceBefore = computeBalance(tenantId);
 
   var txnId = "PAY-" + tenantId + "-" + Date.now();
   appendSheetRow(getSheet("Ledger"), {
     TxnID:        txnId,
     TenantID:     tenantId,
     UnitID:       unitId,
-    BillingMonth: currentMonth,
+    BillingMonth: billingMonthProof || currentMonth,
     TxnType:      "Payment",
     Direction:    "Credit",
     RentAmount:   amountPaid,
     ElecAmount:   0,
     WaterAmount:  0,
     TotalAmount:  amountPaid,
-    PaymentMode:  "GCash",
+    PaymentMode:  paymentMode || "GCash",
     ReferenceNo:  referenceNo,
     Notes:        "Approved payment from tenant submission",
     Date:         today
   });
 
+  var balanceAfter = computeBalance(tenantId);
+
   if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Approved");
   if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
   if (txnIdCol      >= 0) proofSheet.getRange(proofRowNum, txnIdCol      + 1).setValue(txnId);
 
-  return { message: "approved", submissionId: submissionId };
+  if (tenantId) {
+    var allTenants = sheetToJSON(getSheet("Tenants"));
+    var tenant     = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0] || {};
+    var proofDataForEmail = {
+      proofId:      proofId,
+      tenantId:     tenantId,
+      tenantName:   tenantNameProof || tenant["Name"] || tenantId,
+      unitId:       unitId,
+      unitName:     unitNameProof || unitId,
+      billingMonth: billingMonthProof || currentMonth,
+      amountPaid:   amountPaid,
+      referenceNo:  referenceNo,
+      notes:        proofNotes,
+      paymentMode:  paymentMode,
+      submittedAt:  submittedAt,
+      reviewedAt:   today
+    };
+    try { sendApprovalReceiptEmail(tenant, proofDataForEmail, cfg, balanceBefore, balanceAfter); }
+    catch (e) { Logger.log("approveProof email failed: " + e.message); }
+  }
+
+  return { message: "approved", submissionId: proofId };
 }
 
 function rejectProof(body) {
-  var submissionId  = String(body.proofId || body.submissionId || "").trim();
+  var proofId       = String(body.proofId || body.submissionId || "").trim();
   var declineReason = String(body.declineReason || "").trim();
-  if (!submissionId)  throw new Error("submissionId is required");
+  if (!proofId)       throw new Error("proofId is required");
   if (!declineReason) throw new Error("declineReason is required");
 
   var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
   var proofSheet = ss.getSheetByName("PaymentProofs");
   if (!proofSheet) throw new Error("PaymentProofs sheet not found");
 
-  var proofData    = proofSheet.getDataRange().getValues();
-  var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
-  var tenantIdCol   = proofHeaders.indexOf("TenantID");
-  var unitNameCol   = proofHeaders.indexOf("UnitName");
-  var statusCol     = proofHeaders.indexOf("Status");
-  var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
-  var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
+  var proofRaw     = proofSheet.getDataRange().getValues();
+  var proofHeaders = proofRaw[0].map(function(h) { return String(h).trim(); });
+  var sidCol          = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
+  var tenantIdCol     = proofHeaders.indexOf("TenantID");
+  var tenantNameCol   = proofHeaders.indexOf("TenantName");
+  var unitIdCol       = proofHeaders.indexOf("UnitID");
+  var unitNameCol     = proofHeaders.indexOf("UnitName");
+  var amountCol       = proofHeaders.indexOf("AmountPaid");
+  var refNoCol        = proofHeaders.indexOf("ReferenceNo");
+  var billingMonthCol = proofHeaders.indexOf("BillingMonth");
+  var payModeCol      = proofHeaders.indexOf("PaymentMode");
+  var submittedAtCol  = proofHeaders.indexOf("SubmittedAt");
+  var statusCol       = proofHeaders.indexOf("Status");
+  var reviewedAtCol   = proofHeaders.indexOf("ReviewedAt");
+  var reviewNoteCol   = proofHeaders.indexOf("ReviewNote");
 
   var proofRowNum = -1;
-  var tenantId = "", unitName = "";
-  for (var i = 1; i < proofData.length; i++) {
-    if (String(proofData[i][sidCol]) === submissionId) {
-      proofRowNum = i + 1;
-      tenantId    = String(proofData[i][tenantIdCol] || "");
-      unitName    = String(proofData[i][unitNameCol] || "");
+  var tenantId = "", tenantNameProof = "", unitId = "", unitName = "";
+  var amountPaid = 0, referenceNo = "", billingMonthProof = "", paymentMode = "", submittedAt = "";
+  for (var i = 1; i < proofRaw.length; i++) {
+    if (String(proofRaw[i][sidCol]) === proofId) {
+      proofRowNum       = i + 1;
+      tenantId          = String(proofRaw[i][tenantIdCol]   || "");
+      tenantNameProof   = tenantNameCol   >= 0 ? String(proofRaw[i][tenantNameCol]   || "") : "";
+      unitId            = unitIdCol       >= 0 ? String(proofRaw[i][unitIdCol]       || "") : "";
+      unitName          = unitNameCol     >= 0 ? String(proofRaw[i][unitNameCol]     || "") : "";
+      amountPaid        = parseFloat(amountCol >= 0 ? proofRaw[i][amountCol] : 0) || 0;
+      referenceNo       = refNoCol        >= 0 ? String(proofRaw[i][refNoCol]        || "") : "";
+      billingMonthProof = billingMonthCol >= 0 ? String(proofRaw[i][billingMonthCol] || "") : "";
+      paymentMode       = payModeCol      >= 0 ? String(proofRaw[i][payModeCol]      || "") : "";
+      submittedAt       = submittedAtCol  >= 0 ? String(proofRaw[i][submittedAtCol]  || "") : "";
       break;
     }
   }
@@ -1342,49 +1392,27 @@ function rejectProof(body) {
   if (reviewNoteCol >= 0) proofSheet.getRange(proofRowNum, reviewNoteCol + 1).setValue(declineReason);
 
   if (tenantId) {
-    var allTenants  = sheetToJSON(getSheet("Tenants"));
-    var tenant      = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0] || {};
-    var tenantEmail = String(tenant["Email"] || "").trim();
-    if (tenantEmail) {
-      try {
-        var htmlBody = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"></head>'
-          + '<body style="margin:0;padding:0;background-color:#f7f8fc;font-family:Arial,Helvetica,sans-serif;">'
-          + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f7f8fc;padding:24px 0;">'
-          + '<tr><td align="center" style="padding:0 16px;">'
-          + '<table width="520" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;width:100%;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">'
-          + '<tr><td style="background-color:#0f172a;padding:24px 32px;border-radius:12px 12px 0 0;">'
-          + '<p style="font-size:20px;font-weight:bold;color:#ffffff;margin:0;">JJ Apartment</p>'
-          + '<p style="font-size:13px;color:#8ea3c8;margin:6px 0 0 0;">Payment Submission Declined</p>'
-          + '</td></tr>'
-          + '<tr><td style="padding:24px 32px;background-color:#ffffff;">'
-          + '<p style="font-size:15px;color:#0f172a;margin:0 0 12px 0;">Your payment submission for <strong>' + unitName + '</strong> has been declined.</p>'
-          + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef2f2;border-radius:8px;">'
-          + '<tr><td style="padding:16px;">'
-          + '<p style="font-size:11px;color:#991b1b;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px 0;">Reason for Decline</p>'
-          + '<p style="font-size:14px;color:#0f172a;margin:0;">' + declineReason + '</p>'
-          + '</td></tr></table>'
-          + '<p style="font-size:13px;color:#475569;margin:16px 0 0 0;">Please contact your landlord to resolve this issue and resubmit your payment proof.</p>'
-          + '</td></tr>'
-          + '<tr><td style="background-color:#0f172a;padding:16px 32px;border-radius:0 0 12px 12px;">'
-          + '<p style="font-size:12px;color:#8ea3c8;margin:0;">JJariel Rentals &middot; JJ Apartment RMS</p>'
-          + '</td></tr>'
-          + '</table></td></tr></table>'
-          + '</body></html>';
-        GmailApp.sendEmail(tenantEmail,
-          "Payment Submission Declined — " + unitName,
-          "Your payment submission for " + unitName + " has been declined.\n\nReason: " + declineReason + "\n\nPlease contact your landlord to resubmit.",
-          { htmlBody: htmlBody });
-      } catch (e) { Logger.log("rejectProof tenant email failed: " + e.message); }
-    }
+    var cfg        = getConfig();
+    var allTenants = sheetToJSON(getSheet("Tenants"));
+    var tenant     = allTenants.filter(function(t) { return t["TenantID"] === tenantId; })[0] || {};
+    var proofDataForEmail = {
+      proofId:      proofId,
+      tenantId:     tenantId,
+      tenantName:   tenantNameProof || tenant["Name"] || tenantId,
+      unitId:       unitId,
+      unitName:     unitName || unitId,
+      billingMonth: billingMonthProof,
+      amountPaid:   amountPaid,
+      referenceNo:  referenceNo,
+      paymentMode:  paymentMode,
+      submittedAt:  submittedAt,
+      reviewedAt:   today
+    };
+    try { sendDeclineNoticeEmail(tenant, proofDataForEmail, declineReason, cfg); }
+    catch (e) { Logger.log("rejectProof email failed: " + e.message); }
   }
 
-  try {
-    GmailApp.sendEmail("JJarielRentals@outlook.com",
-      "[ADMIN COPY] Payment Submission Declined — " + unitName,
-      "Payment submission " + submissionId + " for " + unitName + " (TenantID: " + tenantId + ") has been declined.\n\nReason: " + declineReason);
-  } catch (e) { Logger.log("rejectProof admin copy email failed: " + e.message); }
-
-  return { message: "rejected", submissionId: submissionId };
+  return { message: "rejected", submissionId: proofId };
 }
 
 function updateExpense(body) {
@@ -1734,6 +1762,397 @@ function sendReceiptEmail(tenant, unit, billingMonth, payment, remainingBalance,
   } else {
     Logger.log("sendReceiptEmail: admin copy skipped — AdminEmail not set in Config sheet");
   }
+}
+
+// ============================================================
+// UNIFIED EMAIL TEMPLATES
+// ============================================================
+
+function buildEmailWrapper(headerHtml, bodyHtml, footerText, adminBanner) {
+  return '<!DOCTYPE html>'
+    + '<html lang="en">'
+    + '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+    + '<body style="margin:0;padding:0;background-color:#f7f8fc;font-family:Arial,Helvetica,sans-serif;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+    + ' style="background-color:#f7f8fc;padding:24px 0;">'
+    + '<tr><td align="center" style="padding:0 16px;">'
+    + '<table width="520" cellpadding="0" cellspacing="0" border="0"'
+    + ' style="max-width:520px;width:100%;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">'
+    + headerHtml
+    + (adminBanner || '')
+    + '<tr><td style="padding:24px 32px;background-color:#ffffff;">' + bodyHtml + '</td></tr>'
+    + '<tr><td style="background-color:#0f172a;padding:16px 32px;border-radius:0 0 12px 12px;">'
+    + '<p style="font-size:12px;color:#8ea3c8;margin:0;line-height:1.5;">' + footerText + '</p>'
+    + '<p style="font-size:11px;color:#3d5280;margin:4px 0 0 0;">JJariel Rentals &middot; JJ Apartment RMS</p>'
+    + '</td></tr>'
+    + '</table>'
+    + '</td></tr></table>'
+    + '</body></html>';
+}
+
+function sendSubmissionConfirmationEmail(tenant, proofData, cfg) {
+  var tenantEmail  = String(tenant["Email"] || "").trim();
+  var propertyName = cfg["PropertyName"]    || "JJ Apartment";
+  var gcashNumber  = String(cfg["GCashNumber"] || "").trim();
+  var gcashName    = String(cfg["GCashName"]   || "").trim();
+
+  var tenantName   = proofData.tenantName  || tenant["Name"] || "";
+  var unitDisplay  = proofData.unitName    || proofData.unitId || "";
+  var billingMonth = proofData.billingMonth || "";
+  var amountPaid   = parseFloat(proofData.amountPaid) || 0;
+  var referenceNo  = proofData.referenceNo || "";
+  var paymentMode  = proofData.paymentMode || "";
+  var notes        = proofData.notes       || "";
+  var submittedAt  = proofData.submittedAt || "";
+
+  var balance  = computeBalance(proofData.tenantId || tenant["TenantID"]);
+  var totalBal = balance.total || 0;
+
+  var subject = "Payment Submitted for Review — " + tenantName
+    + " · " + unitDisplay + " · " + billingMonth;
+
+  var headerHtml = '<tr><td style="background-color:#0f172a;padding:24px 32px;border-radius:12px 12px 0 0;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    + '<td><p style="font-size:20px;font-weight:bold;color:#ffffff;margin:0;line-height:1.3;">'
+    + 'Payment Submitted for Review</p>'
+    + '<p style="font-size:13px;color:#8ea3c8;margin:6px 0 0 0;line-height:1.3;">' + propertyName + '</p></td>'
+    + '<td align="right" style="vertical-align:top;">'
+    + '<span style="display:inline-block;background-color:#f59e0b;color:#78350f;border-radius:999px;'
+    + 'padding:4px 12px;font-size:11px;font-weight:bold;letter-spacing:0.04em;">Pending Review</span>'
+    + '</td></tr></table></td></tr>';
+
+  var detailRows = '';
+  detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Tenant</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;font-weight:bold;">'
+    + tenantName + '</td></tr>';
+  detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Unit</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;font-weight:bold;">'
+    + unitDisplay + '</td></tr>';
+  if (billingMonth) detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Billing Month</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + billingMonth + '</td></tr>';
+  detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Amount Submitted</td>'
+    + '<td style="font-size:14px;color:#0f172a;text-align:right;padding:3px 0;font-weight:bold;">&#8369;'
+    + amountPaid.toFixed(2) + '</td></tr>';
+  if (referenceNo) detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Reference No.</td>'
+    + '<td style="padding:3px 0;text-align:right;">'
+    + '<span style="font-family:Courier New,Courier,monospace;background-color:#e2e8f0;'
+    + 'padding:2px 8px;border-radius:4px;font-size:13px;color:#0f172a;">' + referenceNo + '</span></td></tr>';
+  if (paymentMode) detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Payment Mode</td>'
+    + '<td style="padding:3px 0;text-align:right;">'
+    + '<span style="display:inline-block;background-color:#eef2ff;color:#2d5be3;border-radius:999px;'
+    + 'padding:2px 10px;font-size:12px;font-weight:bold;">' + paymentMode + '</span></td></tr>';
+  if (submittedAt) detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Submitted At</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + submittedAt + '</td></tr>';
+  if (notes) detailRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Notes</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + notes + '</td></tr>';
+
+  var detailsBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+    + ' style="background-color:#f4f6fb;border-radius:8px;margin-bottom:16px;">'
+    + '<tr><td style="padding:16px;">'
+    + '<p style="font-size:11px;color:#475569;font-weight:bold;text-transform:uppercase;'
+    + 'letter-spacing:0.06em;margin:0 0 12px 0;">Submission Details</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + detailRows + '</table></td></tr></table>';
+
+  var balValue, balBg, balLabel;
+  if (totalBal > 0) {
+    balBg = '#fef2f2'; balLabel = 'Outstanding Balance';
+    balValue = '<span style="color:#ef4444;font-weight:bold;">&#8369;' + totalBal.toFixed(2) + '</span>';
+  } else if (totalBal < 0) {
+    balBg = '#ecfdf5'; balLabel = 'Account Credit';
+    balValue = '<span style="color:#10b981;font-weight:bold;">&#8369;'
+      + Math.abs(totalBal).toFixed(2) + ' in credit</span>';
+  } else {
+    balBg = '#f4f6fb'; balLabel = 'Outstanding Balance';
+    balValue = '<span style="color:#0f172a;">&#8369;0.00</span>';
+  }
+  var balBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">'
+    + '<tr><td style="background-color:' + balBg + ';border-radius:8px;padding:14px 16px;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    + '<td style="font-size:13px;color:#475569;">' + balLabel + '</td>'
+    + '<td style="text-align:right;">' + balValue + '</td>'
+    + '</tr></table></td></tr></table>';
+
+  var gcashBlock = '';
+  if (paymentMode === 'GCash' && (gcashNumber || gcashName)) {
+    gcashBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">'
+      + '<tr><td style="background-color:#ecfdf5;border-radius:8px;padding:14px 16px;border-left:3px solid #10b981;">'
+      + '<p style="font-size:11px;color:#065f46;font-weight:bold;text-transform:uppercase;'
+      + 'letter-spacing:0.06em;margin:0 0 8px 0;">GCash Payment Sent To</p>'
+      + '<table width="100%" cellpadding="0" cellspacing="0" border="0">';
+    if (gcashName)   gcashBlock += '<tr><td style="font-size:13px;color:#475569;padding:2px 0;">Account Name</td>'
+      + '<td style="font-size:13px;color:#0f172a;text-align:right;font-weight:bold;padding:2px 0;">'
+      + gcashName + '</td></tr>';
+    if (gcashNumber) gcashBlock += '<tr><td style="font-size:13px;color:#475569;padding:2px 0;">GCash Number</td>'
+      + '<td style="font-family:Courier New,Courier,monospace;font-size:13px;color:#0f172a;'
+      + 'text-align:right;font-weight:bold;padding:2px 0;">' + gcashNumber + '</td></tr>';
+    gcashBlock += '</table></td></tr></table>';
+  }
+
+  var bodyHtml   = detailsBlock + balBlock + gcashBlock;
+  var footerText = "Your submission is pending review by your landlord. You’ll be notified once it has been approved or declined.";
+
+  var tenantHtml = buildEmailWrapper(headerHtml, bodyHtml, footerText, '');
+  var adminBanner = tenantEmail
+    ? '<tr><td style="background-color:#fef3c7;border-bottom:1px solid #fde68a;padding:12px 32px;">'
+      + '<span style="font-size:12px;color:#78350f;">Admin Copy &#8212; Confirmation sent to '
+      + tenantEmail + '</span></td></tr>'
+    : '';
+  var adminHtml = buildEmailWrapper(headerHtml, bodyHtml, footerText, adminBanner);
+
+  var plainText = propertyName + " — Payment Submitted for Review\n\nTenant: " + tenantName
+    + "\nUnit: " + unitDisplay + "\nBilling Month: " + billingMonth
+    + "\nAmount: ₱" + amountPaid.toFixed(2) + "\nRef: " + (referenceNo || "N/A")
+    + "\nStatus: Pending Review\n\n" + footerText;
+
+  if (tenantEmail) {
+    try { GmailApp.sendEmail(tenantEmail, subject, plainText, { htmlBody: tenantHtml }); }
+    catch (e) { Logger.log("sendSubmissionConfirmationEmail tenant failed: " + e.message); }
+  }
+  try { GmailApp.sendEmail("JJarielRentals@outlook.com", "[ADMIN] " + subject, plainText, { htmlBody: adminHtml }); }
+  catch (e) { Logger.log("sendSubmissionConfirmationEmail admin failed: " + e.message); }
+}
+
+function sendApprovalReceiptEmail(tenant, proofData, cfg, balanceBefore, balanceAfter) {
+  var tenantEmail  = String(tenant["Email"] || "").trim();
+  var propertyName = cfg["PropertyName"]    || "JJ Apartment";
+  var gcashNumber  = String(cfg["GCashNumber"] || "").trim();
+  var gcashName    = String(cfg["GCashName"]   || "").trim();
+
+  var tenantName   = proofData.tenantName  || tenant["Name"] || "";
+  var unitDisplay  = proofData.unitName    || proofData.unitId || "";
+  var billingMonth = proofData.billingMonth || "";
+  var amountPaid   = parseFloat(proofData.amountPaid) || 0;
+  var referenceNo  = proofData.referenceNo || "";
+  var paymentMode  = proofData.paymentMode || "";
+  var reviewedAt   = proofData.reviewedAt
+    || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var balBefore = parseFloat(((balanceBefore || {}).total) || 0);
+  var balAfter  = parseFloat(((balanceAfter  || {}).total) || 0);
+
+  var subject = "Payment Approved ✓ — " + tenantName
+    + " · " + unitDisplay + " · " + billingMonth;
+
+  var headerHtml = '<tr><td style="background-color:#10b981;padding:24px 32px;border-radius:12px 12px 0 0;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
+    + '<td><p style="font-size:20px;font-weight:bold;color:#ffffff;margin:0;line-height:1.3;">'
+    + 'Payment Approved</p>'
+    + '<p style="font-size:13px;color:#d1fae5;margin:6px 0 0 0;line-height:1.3;">' + propertyName + '</p></td>'
+    + '<td align="right" style="vertical-align:top;">'
+    + '<span style="display:inline-block;background-color:#ffffff;color:#10b981;border-radius:999px;'
+    + 'padding:4px 14px;font-size:18px;font-weight:bold;">&#10003;</span>'
+    + '</td></tr></table></td></tr>';
+
+  var receiptRows = '';
+  receiptRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Tenant</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;font-weight:bold;padding:3px 0;">'
+    + tenantName + '</td></tr>';
+  receiptRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Unit</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;font-weight:bold;padding:3px 0;">'
+    + unitDisplay + '</td></tr>';
+  if (billingMonth) receiptRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Billing Month</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + billingMonth + '</td></tr>';
+  receiptRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Date Approved</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + reviewedAt + '</td></tr>';
+
+  var receiptBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+    + ' style="background-color:#f4f6fb;border-radius:8px;margin-bottom:16px;">'
+    + '<tr><td style="padding:16px;">'
+    + '<p style="font-size:11px;color:#475569;font-weight:bold;text-transform:uppercase;'
+    + 'letter-spacing:0.06em;margin:0 0 12px 0;">Payment Receipt</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + receiptRows + '</table></td></tr></table>';
+
+  var breakdownRows = '';
+  breakdownRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Amount Paid</td>'
+    + '<td style="font-size:14px;color:#10b981;text-align:right;font-weight:bold;padding:3px 0;">&#8369;'
+    + amountPaid.toFixed(2) + '</td></tr>';
+  if (referenceNo) breakdownRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Reference No.</td>'
+    + '<td style="padding:3px 0;text-align:right;">'
+    + '<span style="font-family:Courier New,Courier,monospace;background-color:#e2e8f0;'
+    + 'padding:2px 8px;border-radius:4px;font-size:13px;color:#0f172a;">' + referenceNo + '</span></td></tr>';
+  if (paymentMode) breakdownRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Payment Mode</td>'
+    + '<td style="padding:3px 0;text-align:right;">'
+    + '<span style="display:inline-block;background-color:#eef2ff;color:#2d5be3;border-radius:999px;'
+    + 'padding:2px 10px;font-size:12px;font-weight:bold;">' + paymentMode + '</span></td></tr>';
+
+  var breakdownBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+    + ' style="background-color:#ecfdf5;border-radius:8px;margin-bottom:16px;">'
+    + '<tr><td style="padding:16px;">'
+    + '<p style="font-size:11px;color:#065f46;font-weight:bold;text-transform:uppercase;'
+    + 'letter-spacing:0.06em;margin:0 0 12px 0;">Payment Breakdown</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + breakdownRows + '</table></td></tr></table>';
+
+  var balAfterDisplay;
+  if (balAfter < 0) {
+    balAfterDisplay = '<span style="color:#10b981;font-weight:bold;">&#8369;'
+      + Math.abs(balAfter).toFixed(2) + ' In Credit</span>';
+  } else if (balAfter === 0) {
+    balAfterDisplay = '<span style="color:#10b981;font-weight:bold;">Fully Paid</span>';
+  } else {
+    balAfterDisplay = '<span style="color:#ef4444;font-weight:bold;">&#8369;' + balAfter.toFixed(2) + '</span>';
+  }
+
+  var balSummaryBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+    + ' style="background-color:#f4f6fb;border-radius:8px;margin-bottom:16px;">'
+    + '<tr><td style="padding:16px;">'
+    + '<p style="font-size:11px;color:#475569;font-weight:bold;text-transform:uppercase;'
+    + 'letter-spacing:0.06em;margin:0 0 12px 0;">Balance Summary</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Previous Balance</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">&#8369;' + balBefore.toFixed(2) + '</td></tr>'
+    + '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Amount Paid</td>'
+    + '<td style="font-size:13px;color:#10b981;text-align:right;padding:3px 0;">&#8722;&#8369;' + amountPaid.toFixed(2) + '</td></tr>'
+    + '<tr><td colspan="2" style="padding:4px 0;"><div style="height:1px;background-color:#e2e8f0;"></div></td></tr>'
+    + '<tr><td style="font-size:14px;font-weight:bold;color:#0f172a;padding:4px 0 0 0;">Remaining Balance</td>'
+    + '<td style="text-align:right;padding:4px 0 0 0;">' + balAfterDisplay + '</td></tr>'
+    + '</table></td></tr></table>';
+
+  var gcashBlock = '';
+  if (paymentMode === 'GCash' && (gcashNumber || gcashName)) {
+    gcashBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">'
+      + '<tr><td style="background-color:#ecfdf5;border-radius:8px;padding:14px 16px;border-left:3px solid #10b981;">'
+      + '<p style="font-size:11px;color:#065f46;font-weight:bold;text-transform:uppercase;'
+      + 'letter-spacing:0.06em;margin:0 0 8px 0;">GCash Payment Received At</p>'
+      + '<table width="100%" cellpadding="0" cellspacing="0" border="0">';
+    if (gcashName)   gcashBlock += '<tr><td style="font-size:13px;color:#475569;padding:2px 0;">Account Name</td>'
+      + '<td style="font-size:13px;color:#0f172a;text-align:right;font-weight:bold;padding:2px 0;">'
+      + gcashName + '</td></tr>';
+    if (gcashNumber) gcashBlock += '<tr><td style="font-size:13px;color:#475569;padding:2px 0;">GCash Number</td>'
+      + '<td style="font-family:Courier New,Courier,monospace;font-size:13px;color:#0f172a;'
+      + 'text-align:right;font-weight:bold;padding:2px 0;">' + gcashNumber + '</td></tr>';
+    gcashBlock += '</table></td></tr></table>';
+  }
+
+  var bodyHtml   = receiptBlock + breakdownBlock + balSummaryBlock + gcashBlock;
+  var footerText = "Thank you for your payment. Please keep this receipt for your records.";
+
+  var tenantHtml = buildEmailWrapper(headerHtml, bodyHtml, footerText, '');
+  var adminBanner = tenantEmail
+    ? '<tr><td style="background-color:#fef3c7;border-bottom:1px solid #fde68a;padding:12px 32px;">'
+      + '<span style="font-size:12px;color:#78350f;">Admin Copy &#8212; Receipt sent to '
+      + tenantEmail + '</span></td></tr>'
+    : '';
+  var adminHtml = buildEmailWrapper(headerHtml, bodyHtml, footerText, adminBanner);
+
+  var plainText = propertyName + " — Payment Approved\n\nTenant: " + tenantName
+    + "\nUnit: " + unitDisplay + "\nBilling Month: " + billingMonth
+    + "\nAmount Paid: ₱" + amountPaid.toFixed(2) + "\nRef: " + (referenceNo || "N/A")
+    + "\nDate Approved: " + reviewedAt
+    + "\nPrevious Balance: ₱" + balBefore.toFixed(2)
+    + "\nRemaining Balance: ₱" + balAfter.toFixed(2)
+    + "\n\n" + footerText;
+
+  if (tenantEmail) {
+    try { GmailApp.sendEmail(tenantEmail, subject, plainText, { htmlBody: tenantHtml }); }
+    catch (e) { Logger.log("sendApprovalReceiptEmail tenant failed: " + e.message); }
+  }
+  try { GmailApp.sendEmail("JJarielRentals@outlook.com", "[ADMIN] " + subject, plainText, { htmlBody: adminHtml }); }
+  catch (e) { Logger.log("sendApprovalReceiptEmail admin failed: " + e.message); }
+}
+
+function sendDeclineNoticeEmail(tenant, proofData, declineReason, cfg) {
+  var tenantEmail  = String(tenant["Email"] || "").trim();
+  var propertyName = cfg["PropertyName"]    || "JJ Apartment";
+  var gcashNumber  = String(cfg["GCashNumber"] || "").trim();
+  var gcashName    = String(cfg["GCashName"]   || "").trim();
+
+  var tenantName   = proofData.tenantName  || tenant["Name"] || "";
+  var unitDisplay  = proofData.unitName    || proofData.unitId || "";
+  var billingMonth = proofData.billingMonth || "";
+  var amountPaid   = parseFloat(proofData.amountPaid) || 0;
+  var referenceNo  = proofData.referenceNo || "";
+  var paymentMode  = proofData.paymentMode || "";
+  var submittedAt  = proofData.submittedAt || "";
+  var reviewedAt   = proofData.reviewedAt
+    || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var subject = "Payment Proof Declined — " + tenantName
+    + " · " + unitDisplay + " · " + billingMonth;
+
+  var headerHtml = '<tr><td style="background-color:#ef4444;padding:24px 32px;border-radius:12px 12px 0 0;">'
+    + '<p style="font-size:20px;font-weight:bold;color:#ffffff;margin:0;line-height:1.3;">'
+    + 'Payment Proof Declined</p>'
+    + '<p style="font-size:13px;color:#fecaca;margin:6px 0 0 0;line-height:1.3;">' + propertyName + '</p>'
+    + '</td></tr>';
+
+  var declinedRows = '';
+  declinedRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Tenant</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;font-weight:bold;padding:3px 0;">'
+    + tenantName + '</td></tr>';
+  declinedRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Unit</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;font-weight:bold;padding:3px 0;">'
+    + unitDisplay + '</td></tr>';
+  if (billingMonth) declinedRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Billing Month</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + billingMonth + '</td></tr>';
+  declinedRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Amount Submitted</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">&#8369;'
+    + amountPaid.toFixed(2) + '</td></tr>';
+  if (referenceNo) declinedRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Reference No.</td>'
+    + '<td style="padding:3px 0;text-align:right;">'
+    + '<span style="font-family:Courier New,Courier,monospace;background-color:#e2e8f0;'
+    + 'padding:2px 8px;border-radius:4px;font-size:13px;color:#0f172a;">' + referenceNo + '</span></td></tr>';
+  if (submittedAt) declinedRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Submitted At</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + submittedAt + '</td></tr>';
+  declinedRows += '<tr><td style="font-size:13px;color:#475569;padding:3px 0;">Date Declined</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;padding:3px 0;">' + reviewedAt + '</td></tr>';
+
+  var declinedBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0"'
+    + ' style="background-color:#f4f6fb;border-radius:8px;margin-bottom:16px;">'
+    + '<tr><td style="padding:16px;">'
+    + '<p style="font-size:11px;color:#475569;font-weight:bold;text-transform:uppercase;'
+    + 'letter-spacing:0.06em;margin:0 0 12px 0;">Declined Submission</p>'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0">'
+    + declinedRows + '</table></td></tr></table>';
+
+  var reasonBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">'
+    + '<tr><td style="background-color:#fef2f2;border-radius:8px;border-left:3px solid #ef4444;padding:14px 16px;">'
+    + '<p style="font-size:11px;color:#991b1b;font-weight:bold;text-transform:uppercase;'
+    + 'letter-spacing:0.06em;margin:0 0 8px 0;">Reason for Decline</p>'
+    + '<p style="font-size:14px;color:#0f172a;margin:0;line-height:1.5;">' + declineReason + '</p>'
+    + '</td></tr></table>';
+
+  var whatNextRows = '';
+  if (gcashName)   whatNextRows += '<tr><td style="font-size:13px;color:#475569;padding:2px 0;">GCash Account Name</td>'
+    + '<td style="font-size:13px;color:#0f172a;text-align:right;font-weight:bold;padding:2px 0;">'
+    + gcashName + '</td></tr>';
+  if (gcashNumber) whatNextRows += '<tr><td style="font-size:13px;color:#475569;padding:2px 0;">GCash Number</td>'
+    + '<td style="font-family:Courier New,Courier,monospace;font-size:13px;color:#0f172a;'
+    + 'text-align:right;font-weight:bold;padding:2px 0;">' + gcashNumber + '</td></tr>';
+
+  var whatNextBlock = '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;">'
+    + '<tr><td style="background-color:#f4f6fb;border-radius:8px;padding:14px 16px;">'
+    + '<p style="font-size:11px;color:#475569;font-weight:bold;text-transform:uppercase;'
+    + 'letter-spacing:0.06em;margin:0 0 10px 0;">What to Do Next</p>'
+    + '<p style="font-size:13px;color:#475569;margin:0 0 10px 0;">'
+    + 'Correct the issue and resubmit your payment proof. Send payment to the correct GCash account:</p>'
+    + (whatNextRows ? '<table width="100%" cellpadding="0" cellspacing="0" border="0">' + whatNextRows + '</table>' : '')
+    + '</td></tr></table>';
+
+  var bodyHtml   = declinedBlock + reasonBlock + whatNextBlock;
+  var footerText = "If you believe this was declined in error, please contact Joel Victor Jariel directly via GCash or in person.";
+
+  var tenantHtml = buildEmailWrapper(headerHtml, bodyHtml, footerText, '');
+  var adminBanner = tenantEmail
+    ? '<tr><td style="background-color:#fef3c7;border-bottom:1px solid #fde68a;padding:12px 32px;">'
+      + '<span style="font-size:12px;color:#78350f;">Admin Copy &#8212; Decline notice sent to '
+      + tenantEmail + '</span></td></tr>'
+    : '';
+  var adminHtml = buildEmailWrapper(headerHtml, bodyHtml, footerText, adminBanner);
+
+  var plainText = propertyName + " — Payment Proof Declined\n\nTenant: " + tenantName
+    + "\nUnit: " + unitDisplay + "\nBilling Month: " + billingMonth
+    + "\nAmount: ₱" + amountPaid.toFixed(2) + "\nRef: " + (referenceNo || "N/A")
+    + "\nDecline Reason: " + declineReason + "\n\n" + footerText;
+
+  if (tenantEmail) {
+    try { GmailApp.sendEmail(tenantEmail, subject, plainText, { htmlBody: tenantHtml }); }
+    catch (e) { Logger.log("sendDeclineNoticeEmail tenant failed: " + e.message); }
+  }
+  try { GmailApp.sendEmail("JJarielRentals@outlook.com", "[ADMIN] " + subject, plainText, { htmlBody: adminHtml }); }
+  catch (e) { Logger.log("sendDeclineNoticeEmail admin failed: " + e.message); }
 }
 
 function testDashboard() {

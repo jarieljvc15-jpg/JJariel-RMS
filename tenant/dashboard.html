@@ -445,7 +445,7 @@
   var tenantId     = session.tenantId;
   var tenantName   = session.name;
   var unitId       = session.unitId;
-  var unitName     = session.unitName || '';
+  var unitName     = session.unitName;
 
   // ── Topbar ──────────────────────────────────────────────────
   document.getElementById('topbarSub').textContent = tenantName + ' · ' + unitName;
@@ -970,16 +970,14 @@
     try {
       var submittedAt = new Date().toISOString();
       await fetchPost({
-        action:        'submitPaymentProof',
-        tenantId:      tenantId,
-        unitId:        unitId,
-        unitName:      unitName,
-        billingMonth:  currentMonth(),
-        referenceNo:   refNo,
-        amountPaid:    amount,
-        driveUrl:      driveUrl,
-        notes:         notes,
-        submittedAt:   submittedAt
+        action:      'submitPaymentProof',
+        tenantId:    tenantId,
+        unitId:      unitId,
+        referenceNo: refNo,
+        amountPaid:  amount,
+        driveUrl:    driveUrl,
+        notes:       notes,
+        submittedAt: submittedAt
       });
 
       successDetail.textContent = 'Reference: ' + refNo + ' · ₱' + peso(amount);
