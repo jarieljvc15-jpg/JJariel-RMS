@@ -1024,11 +1024,12 @@
     var notesHtml = (proof.Notes && proof.Notes.trim())
       ? '<div class="card-notes">' + esc(proof.Notes) + '</div>'
       : '';
-    var screenshotHtml = proof.DriveURL
-      ? '<div style="margin-top:6px;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
+    var screenshotHtml = (proof.ImageUrl || proof.DriveURL)
+      ? '<div style="margin-top:6px;"><a class="card-screenshot-link" href="' + esc(proof.ImageUrl || proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
       : '';
     var proofJson = esc(JSON.stringify(proof));
-    var sid = esc(proof.SubmissionID);
+    var sid = esc(proof.ProofID || proof.SubmissionID);
+    console.log('[renderReviewCard] proofId:', proof.ProofID || proof.SubmissionID, '| raw proof.ProofID:', proof.ProofID, 'proof.SubmissionID:', proof.SubmissionID);
     var ref = proof.ReferenceNo || '';
     var isPending = proof.Status === 'Pending';
     var actionsHtml = isPending
@@ -1138,6 +1139,7 @@
         var card   = btn.closest('.submission-card');
         var proofId = card.getAttribute('data-proof-id');
         var sid    = btn.getAttribute('data-submission-id');
+        console.log('[confirmDecline] proofId from data-proof-id:', proofId, '| sid from data-submission-id:', sid);
         var form   = document.getElementById('decline-form-' + sid);
         var textarea = form.querySelector('textarea');
         var errEl  = form.querySelector('.decline-form-error');
@@ -1655,12 +1657,12 @@
       + detailRow('Submitted At', fmtDate(proof.SubmittedAt))
       + detailRow('Reviewed At', proof.ReviewedAt ? fmtDate(proof.ReviewedAt) : '—')
       + detailRow('Review Note', proof.ReviewNote || '—');
-    if (proof.DriveURL) {
-      html += '<div style="padding:10px 0;"><a class="card-screenshot-link" href="' + esc(proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>';
+    if (proof.ImageUrl || proof.DriveURL) {
+      html += '<div style="padding:10px 0;"><a class="card-screenshot-link" href="' + esc(proof.ImageUrl || proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>';
     }
     if (isReviewable) {
       var proofJson = esc(JSON.stringify(proof));
-      var sid = esc(proof.SubmissionID);
+      var sid = esc(proof.ProofID || proof.SubmissionID);
       html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;">'
         + '<button class="btn btn--outline btn--sm tbl-edit-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
         + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>'
