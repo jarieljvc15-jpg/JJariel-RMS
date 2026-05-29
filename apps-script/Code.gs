@@ -729,7 +729,7 @@ function submitPaymentProof(body) {
 
   var submissionId = "PROOF-" + Date.now();
   appendSheetRow(sheet, {
-    SubmissionID: submissionId,
+    ProofID:      submissionId,
     TenantID:     tenantId,
     UnitID:       unitId,
     TenantName:   tenantName,
@@ -1043,7 +1043,7 @@ function getProofs(params) {
 
   rows = rows.map(function(r) {
     return {
-      ProofID:       String(r["ProofID"]       || r["SubmissionID"] || ""),
+      proofId:       String(r["ProofID"]       || r["SubmissionID"] || ""),
       TenantID:      String(r["TenantID"]      || ""),
       TenantName:    String(r["TenantName"]    || ""),
       UnitID:        String(r["UnitID"]        || ""),
@@ -1098,7 +1098,8 @@ function editPayment(body) {
 
   var proofData    = proofSheet.getDataRange().getValues();
   var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var sidCol        = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
   var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
   var statusCol     = proofHeaders.indexOf("Status");
   var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
@@ -1168,7 +1169,8 @@ function voidPayment(body) {
 
   var proofData    = proofSheet.getDataRange().getValues();
   var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var sidCol        = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
   var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
   var statusCol     = proofHeaders.indexOf("Status");
   var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
@@ -1236,7 +1238,8 @@ function approveProof(body) {
 
   var proofData    = proofSheet.getDataRange().getValues();
   var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var sidCol        = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
   var tenantIdCol   = proofHeaders.indexOf("TenantID");
   var unitIdCol     = proofHeaders.indexOf("UnitID");
   var tenantNameCol = proofHeaders.indexOf("TenantName");
@@ -1292,9 +1295,9 @@ function approveProof(body) {
 }
 
 function rejectProof(body) {
-  var submissionId  = String(body.proofId || body.submissionId || "").trim();
+  var proofId       = String(body.proofId || body.submissionId || "").trim();
   var declineReason = String(body.declineReason || "").trim();
-  if (!submissionId)  throw new Error("submissionId is required");
+  if (!proofId)       throw new Error("proofId is required");
   if (!declineReason) throw new Error("declineReason is required");
 
   var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -1303,19 +1306,19 @@ function rejectProof(body) {
 
   var proofData    = proofSheet.getDataRange().getValues();
   var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
-  if (sidCol < 0) sidCol = proofHeaders.indexOf("ProofID");
+  var sidCol        = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
   var tenantIdCol   = proofHeaders.indexOf("TenantID");
   var unitNameCol   = proofHeaders.indexOf("UnitName");
   var statusCol     = proofHeaders.indexOf("Status");
   var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
   var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
-  if (sidCol < 0) throw new Error("PaymentProofs sheet is missing an ID column (SubmissionID or ProofID)");
+  if (sidCol < 0) throw new Error("PaymentProofs sheet is missing a ProofID column");
 
   var proofRowNum = -1;
   var tenantId = "", unitName = "";
   for (var i = 1; i < proofData.length; i++) {
-    if (String(proofData[i][sidCol]) === submissionId) {
+    if (String(proofData[i][sidCol]) === proofId) {
       proofRowNum = i + 1;
       tenantId    = String(proofData[i][tenantIdCol] || "");
       unitName    = String(proofData[i][unitNameCol] || "");
@@ -1369,10 +1372,10 @@ function rejectProof(body) {
   try {
     GmailApp.sendEmail("JJarielRentals@outlook.com",
       "[ADMIN COPY] Payment Submission Declined — " + unitName,
-      "Payment submission " + submissionId + " for " + unitName + " (TenantID: " + tenantId + ") has been declined.\n\nReason: " + declineReason);
+      "Payment submission " + proofId + " for " + unitName + " (TenantID: " + tenantId + ") has been declined.\n\nReason: " + declineReason);
   } catch (e) { Logger.log("rejectProof admin copy email failed: " + e.message); }
 
-  return { message: "rejected", submissionId: submissionId };
+  return { message: "rejected", proofId: proofId };
 }
 
 function updateExpense(body) {
