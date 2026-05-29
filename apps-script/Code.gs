@@ -717,10 +717,14 @@ function submitPaymentProof(body) {
   if (!tenant) throw new Error("Tenant not found");
   var tenantName = tenant["Name"] || tenantId;
 
-  if (!unitName) {
-    var units = sheetToJSON(getSheet("Units"));
-    var unit  = units.filter(function(u) { return String(u["UnitID"]) === unitId; })[0];
-    unitName  = unit ? (unit["UnitName"] || unit["UnitID"] || unitId) : unitId;
+  if (!unitName && unitId) {
+    var allUnits = sheetToJSON(getSheet("Units"));
+    for (var ui = 0; ui < allUnits.length; ui++) {
+      if (String(allUnits[ui]["UnitID"]) === unitId) {
+        unitName = String(allUnits[ui]["UnitName"] || "").trim();
+        break;
+      }
+    }
   }
 
   var currentMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
@@ -2516,7 +2520,7 @@ function getTenantBillPreview(params) {
     for (var i = 0; i < units.length; i++) {
       if (String(units[i]["UnitID"]) === unitId) { unit = units[i]; break; }
     }
-    if (unit) unitRate = parseFloat(unit["RentAmount"] || unit["Rate"] || 0);
+    if (unit) unitRate = parseFloat(unit["MonthlyRate"] || 0);
   }
 
   // Latest utility reading for this unit
