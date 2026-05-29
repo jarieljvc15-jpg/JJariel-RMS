@@ -1085,7 +1085,7 @@
     }
   }
 
-  function doQuickApprove(submissionId, card) {
+  function doQuickApprove(proofId, card) {
     var btn = card.querySelector('.quick-approve-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Approving...'; }
     fetch(CONFIG.APPS_SCRIPT_URL, {
@@ -1094,7 +1094,7 @@
       body: JSON.stringify({
         action: 'approveProof',
         adminToken: adminToken,
-        submissionId: submissionId
+        proofId: proofId
       })
     })
     .then(function (r) { return r.json(); })
@@ -1113,9 +1113,9 @@
   function bindReviewCardListeners(container) {
     container.querySelectorAll('.quick-approve-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var submissionId = btn.getAttribute('data-submission-id');
-        var card = btn.closest('.submission-card');
-        doQuickApprove(submissionId, card);
+        var card    = btn.closest('.submission-card');
+        var proofId = card.getAttribute('data-proof-id');
+        doQuickApprove(proofId, card);
       });
     });
 
@@ -1499,7 +1499,7 @@
       ? {
           action: 'editPayment',
           adminToken: adminToken,
-          submissionId: activeEditSubmissionId,
+          proofId: activeEditSubmissionId,
           rentAmount: rent,
           elecAmount: elec,
           waterAmount: water,
@@ -1512,7 +1512,7 @@
       : {
           action: 'approveProof',
           adminToken: adminToken,
-          submissionId: activeEditSubmissionId,
+          proofId: activeEditSubmissionId,
           rentAmount: rent,
           elecAmount: elec,
           waterAmount: water,
