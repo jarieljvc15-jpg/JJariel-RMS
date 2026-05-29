@@ -1028,8 +1028,8 @@
       ? '<div style="margin-top:6px;"><a class="card-screenshot-link" href="' + esc(proof.ImageUrl || proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
       : '';
     var proofJson = esc(JSON.stringify(proof));
-    var sid = esc(proof.ProofID || proof.SubmissionID);
-    console.log('[renderReviewCard] proofId:', proof.ProofID || proof.SubmissionID, '| raw proof.ProofID:', proof.ProofID, 'proof.SubmissionID:', proof.SubmissionID);
+    var sid = esc(proof.proofId);
+    console.log('[renderReviewCard] proofId:', proof.proofId);
     var ref = proof.ReferenceNo || '';
     var isPending = proof.Status === 'Pending';
     var actionsHtml = isPending
@@ -1193,7 +1193,7 @@
     container.querySelectorAll('.proof-card').forEach(function (card) {
       card.addEventListener('click', function () {
         var id = card.getAttribute('data-proof-id');
-        var proof = (typeof reviewProofs !== 'undefined' ? reviewProofs : []).find(function (p) { return String(p.ProofID) === String(id); });
+        var proof = (typeof reviewProofs !== 'undefined' ? reviewProofs : []).find(function (p) { return String(p.proofId) === String(id); });
         if (proof && typeof openProofPanel === 'function') openProofPanel(proof);
       });
       card.addEventListener('keydown', function (e) {
@@ -1205,7 +1205,7 @@
   function removeReviewCard(proofId) {
     var card = document.querySelector('.proof-card[data-proof-id="' + proofId + '"]');
     if (card) card.remove();
-    reviewProofs = reviewProofs.filter(function (p) { return String(p.ProofID) !== String(proofId); });
+    reviewProofs = reviewProofs.filter(function (p) { return String(p.proofId) !== String(proofId); });
     var count = document.querySelectorAll('#reviewList .proof-card').length;
     document.getElementById('pendingBadge').textContent = count;
     document.getElementById('approvalsDot').style.display = count > 0 ? 'block' : 'none';
@@ -1268,7 +1268,7 @@
     return {
       action:       'approveProof',
       adminToken:   adminToken,
-      proofId:      activeProof.ProofID,
+      proofId:      activeProof.proofId,
       tenantId:     activeProof.TenantID,
       amount:       parseFloat(document.getElementById('panelAmount').value) || 0,
       referenceNo:  document.getElementById('panelRef').value.trim(),
@@ -1282,7 +1282,7 @@
     var origText = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Approving...';
-    var proofId = activeProof.ProofID;
+    var proofId = activeProof.proofId;
 
     fetch(CONFIG.APPS_SCRIPT_URL, {
       method:  'POST',
@@ -1354,7 +1354,7 @@
       body:    JSON.stringify({
         action:        'rejectProof',
         adminToken:    adminToken,
-        proofId:       proof.ProofID,
+        proofId:       proof.proofId,
         tenantId:      proof.TenantID,
         declineReason: reason
       })
@@ -1363,7 +1363,7 @@
       .then(function (json) {
         if (!json.success) throw new Error(json.error || 'Failed to decline');
         closeProofPanel();
-        removeReviewCard(proof.ProofID);
+        removeReviewCard(proof.proofId);
         showToast('Payment declined and tenant notified.', 'success');
       })
       .catch(function (err) {
@@ -1379,7 +1379,7 @@
   var activeEditProof        = null;
 
   function openEditPanel(proof) {
-    activeEditSubmissionId = proof.ProofID || proof.SubmissionID;
+    activeEditSubmissionId = proof.proofId;
     activeEditProof        = proof;
 
     var now = new Date();
@@ -1662,7 +1662,7 @@
     }
     if (isReviewable) {
       var proofJson = esc(JSON.stringify(proof));
-      var sid = esc(proof.ProofID || proof.SubmissionID);
+      var sid = esc(proof.proofId);
       html += '<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;">'
         + '<button class="btn btn--outline btn--sm tbl-edit-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
         + '<svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:3px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>'
