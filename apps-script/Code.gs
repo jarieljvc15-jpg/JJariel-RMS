@@ -1055,7 +1055,7 @@ function getProofs(params) {
 
   rows = rows.map(function(r) {
     return {
-      ProofID:       String(r["ProofID"]       || r["SubmissionID"] || ""),
+      proofId:       String(r["ProofID"]       || r["SubmissionID"] || ""),
       TenantID:      String(r["TenantID"]      || ""),
       TenantName:    String(r["TenantName"]    || ""),
       UnitID:        String(r["UnitID"]        || ""),
@@ -1110,7 +1110,8 @@ function editPayment(body) {
 
   var proofData    = proofSheet.getDataRange().getValues();
   var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var sidCol        = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
   var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
   var statusCol     = proofHeaders.indexOf("Status");
   var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
@@ -1180,7 +1181,8 @@ function voidPayment(body) {
 
   var proofData    = proofSheet.getDataRange().getValues();
   var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
-  var sidCol        = proofHeaders.indexOf("SubmissionID");
+  var sidCol        = proofHeaders.indexOf("ProofID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("SubmissionID");
   var txnIdCol      = proofHeaders.indexOf("LedgerTxnID");
   var statusCol     = proofHeaders.indexOf("Status");
   var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
