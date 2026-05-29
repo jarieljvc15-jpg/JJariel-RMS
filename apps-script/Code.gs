@@ -1304,11 +1304,13 @@ function rejectProof(body) {
   var proofData    = proofSheet.getDataRange().getValues();
   var proofHeaders = proofData[0].map(function(h) { return String(h).trim(); });
   var sidCol        = proofHeaders.indexOf("SubmissionID");
+  if (sidCol < 0) sidCol = proofHeaders.indexOf("ProofID");
   var tenantIdCol   = proofHeaders.indexOf("TenantID");
   var unitNameCol   = proofHeaders.indexOf("UnitName");
   var statusCol     = proofHeaders.indexOf("Status");
   var reviewedAtCol = proofHeaders.indexOf("ReviewedAt");
   var reviewNoteCol = proofHeaders.indexOf("ReviewNote");
+  if (sidCol < 0) throw new Error("PaymentProofs sheet is missing an ID column (SubmissionID or ProofID)");
 
   var proofRowNum = -1;
   var tenantId = "", unitName = "";
