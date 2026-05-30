@@ -1092,7 +1092,7 @@ function getAllProofs(params) {
 }
 
 function editPayment(body) {
-  var submissionId = String(body.submissionId || "").trim();
+  var submissionId = String(body.proofId || body.submissionId || "").trim();
   var rentAmount   = parseFloat(body.rentAmount)  || 0;
   var elecAmount   = parseFloat(body.elecAmount)  || 0;
   var waterAmount  = parseFloat(body.waterAmount) || 0;
@@ -1102,7 +1102,7 @@ function editPayment(body) {
   var billingMonth = String(body.billingMonth || "").trim();
   var reviewNote   = String(body.reviewNote   || "").trim();
 
-  if (!submissionId) throw new Error("submissionId is required");
+  if (!submissionId) throw new Error("proofId is required");
 
   var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
   var proofSheet = ss.getSheetByName("PaymentProofs");
@@ -1170,10 +1170,10 @@ function editPayment(body) {
 }
 
 function voidPayment(body) {
-  var submissionId = String(body.submissionId || "").trim();
+  var submissionId = String(body.proofId || body.submissionId || "").trim();
   var reviewNote   = String(body.reviewNote   || "").trim();
 
-  if (!submissionId) throw new Error("submissionId is required");
+  if (!submissionId) throw new Error("proofId is required");
 
   var ss         = SpreadsheetApp.openById(SPREADSHEET_ID);
   var proofSheet = ss.getSheetByName("PaymentProofs");
@@ -2417,75 +2417,111 @@ function updateTenant(body) {
 
 function getTenantHistory(params) {
   if (!params.tenantId) throw new Error("tenantId is required");
-  var tenantId = String(params.tenantId);
+  var tenantId    = String(params.tenantId);
   var monthFilter = params.month ? normMonth(params.month) : null;
 
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
-  // Payment proofs (pending, approved, declined)
-  var proofSheet = ss.getSheetByName("PaymentProofs");
-  var proofs = proofSheet ? sheetToJSON(proofSheet) : [];
-  proofs = proofs.filter(function(p) {
-    if (String(p["TenantID"]) !== tenantId) return false;
-    if (monthFilter && normMonth(p["BillingMonth"]) !== monthFilter) return false;
-    return true;
-  });
-
-  // Ledger: bills and credits only (approved payments are already linked to proofs)
+  // Read ALL Ledger rows for tenant
   var ledger = sheetToJSON(getSheet("Ledger")).filter(function(r) {
     if (String(r["TenantID"]) !== tenantId) return false;
     if (monthFilter && normMonth(r["BillingMonth"]) !== monthFilter) return false;
     return true;
   });
-  var bills   = ledger.filter(function(r) { return r["TxnType"] === "Bill"   && r["Direction"] === "Debit";  });
-  var credits = ledger.filter(function(r) { return r["Direction"] === "Credit" && r["TxnType"] !== "Payment"; });
 
-  var payments = proofs.map(function(p) {
-    return {
+  // Read ALL PaymentProofs for tenant (for joining + pending/declined)
+  var proofSheet = ss.getSheetByName("PaymentProofs");
+  var allProofs  = proofSheet ? sheetToJSON(proofSheet).filter(function(p) {
+    if (String(p["TenantID"]) !== tenantId) return false;
+    if (monthFilter && normMonth(p["BillingMonth"]) !== monthFilter) return false;
+    return true;
+  }) : [];
+
+  // Index proofs by LedgerTxnID for O(1) join on Payment rows
+  var proofByTxnId = {};
+  allProofs.forEach(function(p) {
+    var ltid = String(p["LedgerTxnID"] || "").trim();
+    if (ltid) proofByTxnId[ltid] = p;
+  });
+
+  var result       = [];
+  var joinedProofs = {};  // track proofs already joined via Ledger
+
+  ledger.forEach(function(r) {
+    var txnType   = String(r["TxnType"]   || "");
+    var direction = String(r["Direction"] || "");
+    var txnId     = String(r["TxnID"]     || "");
+
+    if (txnType === "Bill" && direction === "Debit") {
+      result.push({
+        _type:        "Bill",
+        date:         String(r["Date"] || ""),
+        billingMonth: normMonth(r["BillingMonth"] || ""),
+        amount:       parseFloat(r["TotalAmount"] || 0),
+        rentAmount:   parseFloat(r["RentAmount"]  || 0),
+        elecAmount:   parseFloat(r["ElecAmount"]  || 0),
+        waterAmount:  parseFloat(r["WaterAmount"] || 0),
+        txnId:        txnId
+      });
+    } else if (txnType === "Payment") {
+      var proof       = proofByTxnId[txnId] || null;
+      var proofStatus = proof ? String(proof["Status"] || "Approved") : "Admin Posted";
+      var pid         = proof ? String(proof["ProofID"] || proof["SubmissionID"] || "") : "";
+      if (pid) joinedProofs[pid] = true;
+      result.push({
+        _type:         "Payment",
+        date:          proof
+          ? String(proof["ReviewedAt"] || proof["SubmittedAt"] || r["Date"] || "")
+          : String(r["Date"] || ""),
+        billingMonth:  normMonth(proof ? (proof["BillingMonth"] || r["BillingMonth"] || "") : (r["BillingMonth"] || "")),
+        amount:        parseFloat(r["TotalAmount"] || (proof ? (proof["AmountPaid"] || 0) : 0) || 0),
+        status:        proofStatus,
+        declineReason: proof ? String(proof["DeclineReason"] || "") : "",
+        paymentMode:   proof ? String(proof["PaymentMode"]   || "") : String(r["PaymentMode"]  || ""),
+        referenceNo:   proof ? String(proof["ReferenceNo"]   || "") : String(r["ReferenceNo"]  || ""),
+        notes:         proof ? String(proof["Notes"]         || "") : String(r["Notes"]        || ""),
+        submissionId:  pid
+      });
+    } else if (direction === "Credit") {
+      result.push({
+        _type:        "Credit",
+        date:         String(r["Date"] || ""),
+        billingMonth: normMonth(r["BillingMonth"] || ""),
+        amount:       parseFloat(r["TotalAmount"] || 0),
+        notes:        String(r["Notes"] || ""),
+        txnId:        txnId
+      });
+    }
+  });
+
+  // Include Pending/Declined proofs not yet written to Ledger
+  allProofs.forEach(function(p) {
+    var pid    = String(p["ProofID"] || p["SubmissionID"] || "");
+    if (joinedProofs[pid]) return;
+    var ltid   = String(p["LedgerTxnID"] || "").trim();
+    if (ltid) return;
+    var status = String(p["Status"] || "Pending");
+    if (status !== "Pending" && status !== "Declined") return;
+    result.push({
       _type:         "Payment",
-      date:          String(p["SubmittedAt"] || p["ReviewedAt"] || ""),
+      date:          String(p["SubmittedAt"] || ""),
       billingMonth:  normMonth(p["BillingMonth"] || ""),
       amount:        parseFloat(p["AmountPaid"] || p["Amount"] || 0),
-      status:        String(p["Status"] || "Pending"),
+      status:        status,
       declineReason: String(p["DeclineReason"] || ""),
-      paymentMode:   String(p["PaymentMode"] || ""),
-      referenceNo:   String(p["ReferenceNo"] || ""),
-      notes:         String(p["Notes"] || ""),
-      submissionId:  String(p["SubmissionID"] || p["ProofID"] || "")
-    };
+      paymentMode:   String(p["PaymentMode"]   || ""),
+      referenceNo:   String(p["ReferenceNo"]   || ""),
+      notes:         String(p["Notes"]         || ""),
+      submissionId:  pid
+    });
   });
 
-  var billItems = bills.map(function(r) {
-    return {
-      _type:        "Bill",
-      date:         String(r["Date"] || ""),
-      billingMonth: normMonth(r["BillingMonth"] || ""),
-      amount:       parseFloat(r["TotalAmount"] || 0),
-      rentAmount:   parseFloat(r["RentAmount"]  || 0),
-      elecAmount:   parseFloat(r["ElecAmount"]  || 0),
-      waterAmount:  parseFloat(r["WaterAmount"] || 0),
-      txnId:        String(r["TxnID"] || "")
-    };
-  });
-
-  var creditItems = credits.map(function(r) {
-    return {
-      _type:        "Credit",
-      date:         String(r["Date"] || ""),
-      billingMonth: normMonth(r["BillingMonth"] || ""),
-      amount:       parseFloat(r["TotalAmount"] || 0),
-      notes:        String(r["Notes"] || ""),
-      txnId:        String(r["TxnID"] || "")
-    };
-  });
-
-  var all = payments.concat(billItems).concat(creditItems);
-  all.sort(function(a, b) {
+  result.sort(function(a, b) {
     var da = String(a.date || "");
     var db = String(b.date || "");
     return da < db ? 1 : da > db ? -1 : 0;
   });
-  return all;
+  return result;
 }
 
 function getTenantBillPreview(params) {
