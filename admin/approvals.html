@@ -1021,42 +1021,57 @@
   }
 
   function renderReviewCard(proof) {
+    // Store all proof data on the card element — every handler reads from here
+    var cardProof = {
+      proofId:      proof.proofId,
+      tenantId:     proof.TenantID,
+      tenantName:   proof.TenantName,
+      unitId:       proof.UnitID,
+      amount:       proof.Amount,
+      referenceNo:  proof.ReferenceNo,
+      billingMonth: proof.BillingMonth,
+      billType:     proof.BillType,
+      imageUrl:     proof.ImageUrl,
+      notes:        proof.Notes,
+      status:       proof.Status,
+      submittedAt:  proof.SubmittedAt,
+      declineReason: proof.DeclineReason
+    };
+    console.log('[renderReviewCard] proofId:', proof.proofId, '| full:', JSON.stringify(cardProof));
+    var proofAttr = esc(JSON.stringify(cardProof));
+    var ref = proof.ReferenceNo || '';
+    var isPending = proof.Status === 'Pending';
     var notesHtml = (proof.Notes && proof.Notes.trim())
       ? '<div class="card-notes">' + esc(proof.Notes) + '</div>'
       : '';
     var screenshotHtml = (proof.ImageUrl || proof.DriveURL)
       ? '<div style="margin-top:6px;"><a class="card-screenshot-link" href="' + esc(proof.ImageUrl || proof.DriveURL) + '" target="_blank" rel="noopener noreferrer">View Screenshot <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
       : '';
-    var proofJson = esc(JSON.stringify(proof));
-    var sid = esc(proof.proofId);
-    console.log('[renderReviewCard] proofId:', proof.proofId);
-    var ref = proof.ReferenceNo || '';
-    var isPending = proof.Status === 'Pending';
     var actionsHtml = isPending
       ? '<div class="card-actions">'
-      +   '<button class="btn btn--primary btn--sm quick-approve-btn" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
+      +   '<button class="btn btn--primary btn--sm quick-approve-btn">'
       +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg>'
       +     'Quick Approve'
       +   '</button>'
-      +   '<button class="btn btn--outline btn--sm review-approve-btn" style="color:var(--accent);border-color:var(--accent);" data-submission-id="' + sid + '" data-proof="' + proofJson + '">'
+      +   '<button class="btn btn--outline btn--sm review-approve-btn" style="color:var(--accent);border-color:var(--accent);">'
       +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
       +     'Review &amp; Approve'
       +   '</button>'
-      +   '<button class="btn btn--outline btn--sm decline-start-btn" style="color:var(--danger);border-color:var(--danger);" data-submission-id="' + sid + '">'
+      +   '<button class="btn btn--outline btn--sm decline-start-btn" style="color:var(--danger);border-color:var(--danger);">'
       +     '<svg viewBox="0 0 24 24" aria-hidden="true" width="14" height="14" style="stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
       +     'Decline'
       +   '</button>'
       + '</div>'
-      + '<div class="decline-form hidden" id="decline-form-' + sid + '">'
+      + '<div class="decline-form hidden">'
       +   '<textarea class="form-input" placeholder="Reason for declining (required)..." rows="2"></textarea>'
       +   '<div class="decline-form-error hidden"></div>'
       +   '<div style="display:flex;gap:8px;margin-top:8px;">'
-      +     '<button class="btn btn--danger btn--sm confirm-decline-btn" data-submission-id="' + sid + '">Confirm Decline</button>'
-      +     '<button class="btn btn--outline btn--sm cancel-decline-btn" data-submission-id="' + sid + '">Cancel</button>'
+      +     '<button class="btn btn--danger btn--sm confirm-decline-btn">Confirm Decline</button>'
+      +     '<button class="btn btn--outline btn--sm cancel-decline-btn">Cancel</button>'
       +   '</div>'
       + '</div>'
       : '<div style="margin-top:10px;">' + statusBadgeHtml(proof.Status) + '</div>';
-    return '<div class="submission-card" data-submission-id="' + sid + '" data-proof-id="' + sid + '">'
+    return '<div class="submission-card" data-proof="' + proofAttr + '">'
       + '<div class="card-header-row">'
       +   '<div style="min-width:0;overflow:hidden;">'
       +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
@@ -1085,16 +1100,17 @@
     }
   }
 
-  function doQuickApprove(proofId, card) {
+  function doQuickApprove(proof, card) {
     var btn = card.querySelector('.quick-approve-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Approving...'; }
+    console.log('[doQuickApprove] sending proofId:', proof.proofId);
     fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
-        action: 'approveProof',
+        action:     'approveProof',
         adminToken: adminToken,
-        proofId: proofId
+        proofId:    proof.proofId
       })
     })
     .then(function (r) { return r.json(); })
@@ -1113,37 +1129,37 @@
   function bindReviewCardListeners(container) {
     container.querySelectorAll('.quick-approve-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var card    = btn.closest('.submission-card');
-        var proofId = card.getAttribute('data-proof-id');
-        doQuickApprove(proofId, card);
+        var card  = btn.closest('[data-proof]');
+        var proof = JSON.parse(card.dataset.proof);
+        console.log('[quickApprove click] proofId:', proof.proofId);
+        doQuickApprove(proof, card);
       });
     });
 
     container.querySelectorAll('.review-approve-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var proof = JSON.parse(btn.getAttribute('data-proof'));
-        openEditPanel(proof);
+        var card  = btn.closest('[data-proof]');
+        var proof = JSON.parse(card.dataset.proof);
+        openEditPanel(proof, card);
       });
     });
 
     container.querySelectorAll('.decline-start-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var sid = btn.getAttribute('data-submission-id');
-        var form = document.getElementById('decline-form-' + sid);
+        var card = btn.closest('[data-proof]');
+        var form = card.querySelector('.decline-form');
         if (form) form.classList.toggle('hidden');
       });
     });
 
     container.querySelectorAll('.confirm-decline-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var card   = btn.closest('.submission-card');
-        var proofId = card.getAttribute('data-proof-id');
-        var sid    = btn.getAttribute('data-submission-id');
-        console.log('[confirmDecline] proofId from data-proof-id:', proofId, '| sid from data-submission-id:', sid);
-        var form   = document.getElementById('decline-form-' + sid);
+        var card     = btn.closest('[data-proof]');
+        var proof    = JSON.parse(card.dataset.proof);
+        var form     = card.querySelector('.decline-form');
         var textarea = form.querySelector('textarea');
-        var errEl  = form.querySelector('.decline-form-error');
-        var reason = textarea.value.trim();
+        var errEl    = form.querySelector('.decline-form-error');
+        var reason   = textarea.value.trim();
         if (!reason) {
           errEl.textContent = 'Please enter a decline reason';
           errEl.classList.remove('hidden');
@@ -1153,21 +1169,21 @@
         errEl.classList.add('hidden');
         btn.disabled = true;
         btn.textContent = 'Declining...';
+        console.log('[confirmDecline] sending proofId:', proof.proofId);
         fetch(CONFIG.APPS_SCRIPT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
-            action: 'rejectProof',
-            adminToken: adminToken,
-            proofId: proofId,
+            action:        'rejectProof',
+            adminToken:    adminToken,
+            proofId:       proof.proofId,
             declineReason: reason
           })
         })
         .then(function (r) { return r.json(); })
         .then(function (json) {
           if (!json.success) throw new Error(json.error || 'Failed to decline');
-          var c = document.querySelector('.submission-card[data-proof-id="' + proofId + '"]');
-          if (c) c.remove();
+          card.remove();
           decrementPendingBadge();
           showToast('Submission declined', 'success');
         })
@@ -1181,8 +1197,8 @@
 
     container.querySelectorAll('.cancel-decline-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        var sid = btn.getAttribute('data-submission-id');
-        var form = document.getElementById('decline-form-' + sid);
+        var card = btn.closest('[data-proof]');
+        var form = card.querySelector('.decline-form');
         if (form) form.classList.add('hidden');
       });
     });
@@ -1377,10 +1393,12 @@
 
   var activeEditSubmissionId = null;
   var activeEditProof        = null;
+  var activeEditCard         = null;
 
-  function openEditPanel(proof) {
+  function openEditPanel(proof, card) {
     activeEditSubmissionId = proof.proofId;
     activeEditProof        = proof;
+    activeEditCard         = card || null;
 
     var now = new Date();
     var defaultMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -1495,6 +1513,7 @@
     // If proof already has a LedgerTxnID it is Auto-Approved; use editPayment.
     // Otherwise it is a new Pending proof: use approveProof with split amounts.
     var hasLedger = activeEditProof && activeEditProof.LedgerTxnID;
+    console.log('[editSave] proofId:', activeEditSubmissionId, '| hasLedger:', !!hasLedger);
     var payload = hasLedger
       ? {
           action: 'editPayment',
@@ -1531,10 +1550,12 @@
       if (!json.success) throw new Error(json.error || 'Failed to save');
       document.getElementById('editPanel').classList.remove('open');
 
-      // Remove card from Needs Review list and decrement badge
-      var card = document.querySelector('.submission-card[data-submission-id="' + activeEditSubmissionId + '"]');
-      if (card) card.remove();
-      decrementPendingBadge();
+      // Remove the originating card from the Needs Review list
+      if (activeEditCard) {
+        activeEditCard.remove();
+        activeEditCard = null;
+        decrementPendingBadge();
+      }
       showToast('Payment approved successfully.', 'success');
     })
     .catch(function (err) {
