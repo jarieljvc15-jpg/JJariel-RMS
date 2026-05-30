@@ -1041,6 +1041,7 @@ function getProofs(params) {
 
   // Ensure required columns exist
   var headers = sheet.getDataRange().getValues()[0].map(function(h) { return String(h).trim(); });
+  Logger.log("[getProofs] PaymentProofs sheet headers: " + JSON.stringify(headers));
   if (headers.indexOf("DeclineReason") < 0) {
     sheet.getRange(1, headers.length + 1).setValue("DeclineReason");
     headers.push("DeclineReason");
@@ -1080,6 +1081,10 @@ function getProofs(params) {
     };
   });
   Logger.log("[getProofs] headers: " + JSON.stringify(headers) + " | first row submissionId: " + (rows.length > 0 ? rows[0].submissionId : "none"));
+
+  if (rows.length > 0) {
+    Logger.log("[getProofs] First row: proofId=" + rows[0].proofId + " | r[ProofID]=" + rows[0].proofId);
+  }
 
   if (params && params.status) {
     rows = rows.filter(function(r) { return r["Status"] === params.status; });
@@ -2458,7 +2463,7 @@ function getTenantHistory(params) {
   });
 
   var result       = [];
-  var joinedProofs = {};  // track proofs already joined via Ledger
+  var joinedProofs = {};
 
   ledger.forEach(function(r) {
     var txnType   = String(r["TxnType"]   || "");
