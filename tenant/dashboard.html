@@ -274,11 +274,13 @@
       text-transform: uppercase;
       flex-shrink: 0;
     }
-    .status-badge--pending  { background: var(--warning-bg, #fffbeb); color: var(--warning, #d97706); }
-    .status-badge--approved { background: var(--success-bg, #f0fdf4); color: var(--success, #16a34a); }
-    .status-badge--declined { background: #fee2e2; color: var(--danger, #dc2626); }
-    .status-badge--bill     { background: var(--navy-100, #e8ecf3); color: var(--navy-500, #3d5a8a); }
-    .status-badge--credit   { background: var(--success-bg, #f0fdf4); color: var(--success, #16a34a); }
+    .status-badge--pending      { background: var(--warning-bg, #fffbeb); color: var(--warning, #d97706); }
+    .status-badge--approved     { background: var(--success-bg, #f0fdf4); color: var(--success, #16a34a); }
+    .status-badge--declined     { background: #fee2e2; color: var(--danger, #dc2626); }
+    .status-badge--bill         { background: var(--navy-100, #e8ecf3); color: var(--navy-500, #3d5a8a); }
+    .status-badge--credit       { background: var(--success-bg, #f0fdf4); color: var(--success, #16a34a); }
+    .status-badge--payment      { background: #eff6ff; color: #1d4ed8; }
+    .status-badge--admin-posted { background: #f3f4f6; color: #6b7280; }
     .bill-sect-title {
       font-family: 'Inter', sans-serif;
       font-weight: 600;
@@ -671,7 +673,7 @@
 
   // ── TAB 2: HISTORY ───────────────────────────────────────────
   var historyFilter = 'all';
-  var historyMonth  = currentMonth();
+  var historyMonth  = '';
   var historyData   = null;
 
   async function loadHistoryTab() {
@@ -780,34 +782,30 @@
   }
 
   function renderHistPaymentCard(item) {
-    var status    = String(item.status || 'Pending');
-    var statusKey = status.toLowerCase();
-    var badgeClass = 'status-badge--' + statusKey;
-    var amt = parseFloat(item.amount) || 0;
-    var month = item.billingMonth || '';
+    var status     = String(item.status || 'Pending');
+    var statusKey  = status === 'Admin Posted' ? 'admin-posted' : status.toLowerCase();
+    var amt        = parseFloat(item.amount) || 0;
+    var month      = item.billingMonth || '';
+    var row2Parts  = [];
+    if (month)            row2Parts.push(esc(month));
+    if (item.paymentMode) row2Parts.push(esc(item.paymentMode));
+    if (item.referenceNo) row2Parts.push('Ref: ' + esc(item.referenceNo));
     var h = '<div class="hist-card">';
     h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
     h += '<div style="flex:1;min-width:0;">';
     h += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">';
     h += '<span style="font-family:\'Inter\',sans-serif;font-weight:500;font-size:13px;color:var(--text-primary);">' + esc(fmtDate(item.date)) + '</span>';
-    if (month) h += '<span class="month-pill">' + esc(month) + '</span>';
+    h += '<span class="status-badge status-badge--payment">Payment</span>';
+    h += '<span class="status-badge status-badge--' + statusKey + '">' + esc(status) + '</span>';
     h += '</div>';
-    if (item.paymentMode || item.referenceNo) {
-      h += '<div style="margin-top:4px;display:flex;align-items:center;flex-wrap:wrap;gap:6px;">';
-      if (item.paymentMode) h += '<span class="mode-pill">' + esc(item.paymentMode) + '</span>';
-      if (item.referenceNo) h += '<span style="font-family:\'SF Mono\',\'Fira Code\',monospace;font-size:11px;color:var(--text-muted);">' + esc(item.referenceNo) + '</span>';
-      h += '</div>';
+    if (row2Parts.length) {
+      h += '<div style="margin-top:4px;font-family:\'Inter\',sans-serif;font-size:12px;color:var(--text-muted);">' + row2Parts.join(' &middot; ') + '</div>';
     }
     h += '</div>';
-    h += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">';
-    h += '<span class="status-badge ' + badgeClass + '">' + esc(status) + '</span>';
-    h += '<div style="font-family:\'Satoshi\',\'Inter\',sans-serif;font-weight:700;font-size:15px;color:var(--success);">&#8369;' + peso(amt) + '</div>';
-    h += '</div>';
+    h += '<div style="font-family:\'Satoshi\',\'Inter\',sans-serif;font-weight:700;font-size:15px;color:var(--success);flex-shrink:0;">&#8369;' + peso(amt) + '</div>';
     h += '</div>';
     if (status === 'Declined' && item.declineReason) {
-      h += '<div style="margin-top:8px;font-family:\'Inter\',sans-serif;font-size:12px;color:var(--danger);border-top:1px solid #fee2e2;padding-top:8px;">';
-      h += 'Reason: ' + esc(item.declineReason);
-      h += '</div>';
+      h += '<div style="margin-top:6px;font-family:\'Inter\',sans-serif;font-size:12px;color:var(--danger);">Reason: ' + esc(item.declineReason) + '</div>';
     }
     h += '</div>';
     return h;
@@ -821,14 +819,16 @@
     var water = parseFloat(item.waterAmount) || 0;
     var h = '<div class="hist-card">';
     h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
-    h += '<div>';
-    h += '<div style="display:flex;align-items:center;gap:6px;">';
-    h += '<span style="font-family:\'Inter\',sans-serif;font-weight:600;font-size:13px;color:var(--text-primary);">' + esc(month) + '</span>';
+    h += '<div style="flex:1;min-width:0;">';
+    h += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">';
+    h += '<span style="font-family:\'Inter\',sans-serif;font-weight:500;font-size:13px;color:var(--text-primary);">' + esc(fmtDate(item.date)) + '</span>';
     h += '<span class="status-badge status-badge--bill">Bill</span>';
     h += '</div>';
-    h += '<div style="font-family:\'Inter\',sans-serif;font-weight:400;font-size:11px;color:var(--text-muted);margin-top:4px;">';
-    h += 'Rent &#8369;' + peso(rent) + ' &middot; Elec &#8369;' + peso(elec) + ' &middot; Water &#8369;' + peso(water);
-    h += '</div>';
+    if (month) {
+      h += '<div style="margin-top:4px;font-family:\'Inter\',sans-serif;font-size:12px;color:var(--text-muted);">';
+      h += esc(month) + ' &middot; Rent &#8369;' + peso(rent) + ' &middot; Elec &#8369;' + peso(elec) + ' &middot; Water &#8369;' + peso(water);
+      h += '</div>';
+    }
     h += '</div>';
     h += '<div style="font-family:\'Satoshi\',\'Inter\',sans-serif;font-weight:700;font-size:15px;color:var(--text-primary);flex-shrink:0;">&#8369;' + peso(amt) + '</div>';
     h += '</div>';
@@ -842,12 +842,11 @@
     var h = '<div class="hist-card">';
     h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
     h += '<div style="flex:1;min-width:0;">';
-    h += '<div style="display:flex;align-items:center;gap:6px;">';
+    h += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">';
     h += '<span style="font-family:\'Inter\',sans-serif;font-weight:500;font-size:13px;color:var(--text-primary);">' + esc(fmtDate(item.date)) + '</span>';
     h += '<span class="status-badge status-badge--credit">Credit</span>';
     h += '</div>';
-    if (month) h += '<span class="month-pill" style="margin-top:4px;display:inline-block;">' + esc(month) + '</span>';
-    if (item.notes) h += '<div style="font-family:\'Inter\',sans-serif;font-size:12px;color:var(--text-muted);margin-top:4px;">' + esc(item.notes) + '</div>';
+    if (month) h += '<div style="margin-top:4px;font-family:\'Inter\',sans-serif;font-size:12px;color:var(--text-muted);">' + esc(month) + '</div>';
     h += '</div>';
     h += '<div style="font-family:\'Satoshi\',\'Inter\',sans-serif;font-weight:700;font-size:15px;color:var(--success);flex-shrink:0;">&#8369;' + peso(amt) + '</div>';
     h += '</div>';
