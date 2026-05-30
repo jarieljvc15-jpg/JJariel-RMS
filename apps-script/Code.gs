@@ -1041,6 +1041,7 @@ function getProofs(params) {
 
   // Ensure required columns exist
   var headers = sheet.getDataRange().getValues()[0].map(function(h) { return String(h).trim(); });
+  Logger.log("[getProofs] PaymentProofs sheet headers: " + JSON.stringify(headers));
   if (headers.indexOf("DeclineReason") < 0) {
     sheet.getRange(1, headers.length + 1).setValue("DeclineReason");
     headers.push("DeclineReason");
@@ -1072,6 +1073,10 @@ function getProofs(params) {
     };
   });
 
+  if (rows.length > 0) {
+    Logger.log("[getProofs] First row: proofId=" + rows[0].proofId + " | r[ProofID]=" + rows[0].proofId);
+  }
+
   if (params && params.status) {
     rows = rows.filter(function(r) { return r["Status"] === params.status; });
   }
@@ -1092,6 +1097,7 @@ function getAllProofs(params) {
 }
 
 function editPayment(body) {
+  Logger.log("[editPayment] body: " + JSON.stringify(body));
   var submissionId = String(body.proofId || body.submissionId || "").trim();
   var rentAmount   = parseFloat(body.rentAmount)  || 0;
   var elecAmount   = parseFloat(body.elecAmount)  || 0;
@@ -1170,6 +1176,7 @@ function editPayment(body) {
 }
 
 function voidPayment(body) {
+  Logger.log("[voidPayment] body: " + JSON.stringify(body));
   var submissionId = String(body.proofId || body.submissionId || "").trim();
   var reviewNote   = String(body.reviewNote   || "").trim();
 
@@ -1241,6 +1248,7 @@ function voidPayment(body) {
 }
 
 function approveProof(body) {
+  Logger.log("[approveProof] body: " + JSON.stringify(body));
   var proofId = String(body.proofId || body.submissionId || "").trim();
   if (!proofId) throw new Error("proofId is required");
 
@@ -1342,6 +1350,7 @@ function approveProof(body) {
 }
 
 function rejectProof(body) {
+  Logger.log("[rejectProof] body: " + JSON.stringify(body));
   var proofId       = String(body.proofId || body.submissionId || "").trim();
   var declineReason = String(body.declineReason || "").trim();
   if (!proofId)       throw new Error("proofId is required");
@@ -2445,7 +2454,7 @@ function getTenantHistory(params) {
   });
 
   var result       = [];
-  var joinedProofs = {};  // track proofs already joined via Ledger
+  var joinedProofs = {};
 
   ledger.forEach(function(r) {
     var txnType   = String(r["TxnType"]   || "");
