@@ -1581,7 +1581,7 @@
       method:  'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
-        action:       'rejectProof',
+        action:       'voidPayment',
         adminToken:   adminToken,
         submissionId: pendingVoidId,
         reviewNote: reason
@@ -1589,9 +1589,9 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (json) {
-        if (!json.success) throw new Error(json.error || 'Failed to reject');
+        if (!json.success) throw new Error(json.error || 'Failed to void');
         document.getElementById('voidModal').classList.remove('open');
-        showToast('Payment rejected.', 'success');
+        showToast('Payment voided.', 'success');
       })
       .catch(function (err) {
         showToast(err.message || 'Failed to reject payment.', 'error');
