@@ -1190,20 +1190,6 @@
     });
   }
 
-  // Kept from origin — opens proof panel when submission-card clicked (used by origin's proofPanel flow)
-  function bindReviewCards(container) {
-    container.querySelectorAll('.submission-card').forEach(function (card) {
-      card.addEventListener('click', function () {
-        var id = card.getAttribute('data-submission-id');
-        var proof = (typeof reviewProofs !== 'undefined' ? reviewProofs : []).find(function (p) { return String(p.submissionId) === String(id); });
-        if (proof && typeof openProofPanel === 'function') openProofPanel(proof);
-      });
-      card.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
-      });
-    });
-  }
-
   function removeReviewCard(submissionId) {
     var card = document.querySelector('.submission-card[data-submission-id="' + submissionId + '"]');
     if (card) card.remove();
@@ -1767,41 +1753,6 @@
     return '<span class="badge badge--pending">Pending</span>';
   }
 
-  // Kept from origin — card renderer (used by openDetailPanel click flow)
-  function renderAllCard(proof) {
-    var status   = proof.Status || 'Pending';
-    var statusL  = status.toLowerCase();
-    var ref      = proof.ReferenceNo || '';
-    var month    = (proof.BillingMonth || '').substring(0, 7);
-    var billType = proof.BillType || '';
-    var decline  = proof.DeclineReason || proof.ReviewNote || '';
-    var isApproved = statusL === 'approved' || statusL === 'reviewed';
-    var isDeclined = statusL === 'declined' || statusL === 'voided' || statusL === 'rejected';
-    var borderCls = isApproved ? 'status-approved'
-                  : isDeclined ? 'status-declined'
-                  : 'status-pending';
-    var meta = [];
-    if (month)    meta.push(month);
-    if (billType) meta.push(billType);
-    var proofJson = esc(JSON.stringify(proof));
-
-    return '<div class="sub-card ' + borderCls + '" data-proof=\'' + proofJson + '\'>'
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
-      +   '<div style="min-width:0;">'
-      +     '<span class="card-tenant-name">' + esc(proof.TenantName) + '</span>'
-      +     '<span class="card-unit-badge">' + esc(proof.UnitName || proof.UnitID || '') + '</span>'
-      +   '</div>'
-      +   statusBadgeHtml(status)
-      + '</div>'
-      + '<div class="card-amount-row" style="margin-top:8px;">'
-      +   '<span class="card-amount" style="font-size:18px;">' + pesoHtml(proof.Amount) + '</span>'
-      +   (ref ? '<span class="card-ref-pill">' + esc(ref) + '</span>' : '')
-      + '</div>'
-      + (meta.length ? '<div class="sub-card-meta">' + esc(meta.join(' · ')) + '</div>' : '')
-      + (isDeclined && decline ? '<div class="sub-card-decline">' + esc(decline) + '</div>' : '')
-      + '</div>';
-  }
-
   // renderAllList delegates to accordion table renderer (HEAD approach)
   function renderAllList() {
     renderAllTable(allProofsData);
@@ -1816,25 +1767,6 @@
     renderAllList();
   });
 
-  // ── EXISTING: Detail panel ───────────────────────────────────
-
-  function openDetailPanel(proof) {
-    var status = proof.Status || 'Pending';
-    document.getElementById('detailPanelTitle').textContent = (proof.TenantName || '') + ' — ' + status;
-    var imageUrl = proof.ImageUrl || proof.DriveURL || '';
-    document.getElementById('detailPanelBody').innerHTML =
-      (imageUrl
-        ? '<div style="margin-bottom:14px;"><img src="' + esc(imageUrl) + '" style="width:100%;border-radius:var(--radius-sm);display:block;" onerror="this.style.display=\'none\'" alt="Payment proof"><a class="card-screenshot-link" href="' + esc(imageUrl) + '" target="_blank" rel="noopener noreferrer" style="margin-top:6px;display:inline-flex;">View image <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a></div>'
-        : '<div style="background:var(--off-white);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:14px;">No image submitted</div>')
-      + detailRow('Amount', peso(proof.Amount || proof.AmountPaid))
-      + detailRow('Bill Type', proof.BillType || 'Rent')
-      + detailRow('Reference', proof.ReferenceNo || '—')
-      + detailRow('Billing Month', proof.BillingMonth || '—')
-      + detailRow('Decline Reason', proof.DeclineReason || proof.ReviewNote || '—')
-      + detailRow('Submitted', fmtDate(proof.SubmittedAt))
-      + detailRow('Reviewed', proof.ReviewedAt ? fmtDate(proof.ReviewedAt) : '—');
-    document.getElementById('detailPanel').classList.add('open');
-  }
 
   function detailRow(label, value) {
     return '<div class="detail-row"><span class="detail-label">' + esc(label) + '</span><span class="detail-value">' + esc(value) + '</span></div>';
