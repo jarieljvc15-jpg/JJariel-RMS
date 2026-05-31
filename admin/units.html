@@ -374,8 +374,8 @@
       if (!uJson.success) throw new Error(uJson.error || 'Failed to load units');
       if (!bJson.success) throw new Error(bJson.error || 'Failed to load buildings');
 
-      units     = uJson.data;
-      buildings = bJson.data;
+      units     = Array.isArray(uJson.data) ? uJson.data : [];
+      buildings = Array.isArray(bJson.data) ? bJson.data : [];
 
       populateBuildingDropdown();
       renderUnits();
