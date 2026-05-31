@@ -87,7 +87,6 @@ function doPost(e) {
         case "addNote":        result = addNote(body);        break;
         case "sendReminder":   result = sendReminder(body);   break;
         case "updateTenant":   result = updateTenant(body);   break;
-        case "updateConfig":   result = updateConfig(body);   break;
         case "editPayment":    result = editPayment(body);    break;
         case "voidPayment":    result = voidPayment(body);    break;
         case "approveProof":   result = approveProof(body);   break;
@@ -1106,9 +1105,6 @@ function addExpense(body) {
   return { success: true, data: { expenseId: expenseId } };
 }
 
-function updateConfig(body) {
-  return { message: "stub: updateConfig", key: body.key };
-}
 
 // ============================================================
 // PAYMENT PROOFS
@@ -1397,28 +1393,36 @@ function approveProof(body) {
   var balanceBefore = computeBalance(tenantId);
 
   var txnId = "PAY-" + tenantId + "-" + Date.now();
-  appendSheetRow(getSheet("Ledger"), {
-    TxnID:        txnId,
-    TenantID:     tenantId,
-    UnitID:       unitId,
-    BillingMonth: billingMonthProof || currentMonth,
-    TxnType:      "Payment",
-    Direction:    "Credit",
-    RentAmount:   amountPaid,
-    ElecAmount:   0,
-    WaterAmount:  0,
-    TotalAmount:  amountPaid,
-    PaymentMode:  paymentMode || "GCash",
-    ReferenceNo:  referenceNo,
-    Notes:        "Approved payment from tenant submission",
-    Date:         today
-  });
 
-  var balanceAfter = computeBalance(tenantId);
-
+  // Mark as Approved first so the proof state is consistent before the Ledger write.
   if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Approved");
   if (reviewedAtCol >= 0) proofSheet.getRange(proofRowNum, reviewedAtCol + 1).setValue(today);
   if (txnIdCol      >= 0) proofSheet.getRange(proofRowNum, txnIdCol      + 1).setValue(txnId);
+
+  // Write the Ledger entry. If it fails, revert the proof status so neither side is persisted.
+  try {
+    appendSheetRow(getSheet("Ledger"), {
+      TxnID:        txnId,
+      TenantID:     tenantId,
+      UnitID:       unitId,
+      BillingMonth: billingMonthProof || currentMonth,
+      TxnType:      "Payment",
+      Direction:    "Credit",
+      RentAmount:   amountPaid,
+      ElecAmount:   0,
+      WaterAmount:  0,
+      TotalAmount:  amountPaid,
+      PaymentMode:  paymentMode || "GCash",
+      ReferenceNo:  referenceNo,
+      Notes:        "Approved payment from tenant submission",
+      Date:         today
+    });
+  } catch (ledgerErr) {
+    if (statusCol >= 0) proofSheet.getRange(proofRowNum, statusCol + 1).setValue("Pending");
+    throw new Error("Ledger write failed — approval reverted: " + ledgerErr.message);
+  }
+
+  var balanceAfter = computeBalance(tenantId);
 
   if (tenantId) {
     var allTenants = sheetToJSON(getSheet("Tenants"));
