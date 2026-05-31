@@ -925,9 +925,11 @@ function addTenant(body) {
   var contact    = String(body.contact    || "").trim();
   var email      = String(body.email      || "").trim();
   var moveInDate = String(body.moveInDate || "").trim();
-  var advance    = parseFloat(body.advance) || 0;
-  var deposit    = parseFloat(body.deposit) || 0;
-  var pin        = String(body.pin        || "").trim();
+  var advance      = parseFloat(body.advance)      || 0;
+  var deposit      = parseFloat(body.deposit)      || 0;
+  var pin          = String(body.pin               || "").trim();
+  var monthlyRate  = parseFloat(body.monthlyRate);
+  if (isNaN(monthlyRate)) monthlyRate = 0;
 
   if (!name || !unitId || !pin) throw new Error("name, unitId, and pin are required");
 
@@ -983,14 +985,18 @@ function addTenant(body) {
     });
   }
 
-  var unitsSheet  = getSheet("Units");
-  var unitsData   = unitsSheet.getDataRange().getValues();
-  var unitHeaders = unitsData[0];
-  var unitIdCol   = unitHeaders.indexOf("UnitID");
-  var statusCol   = unitHeaders.indexOf("Status");
+  var unitsSheet       = getSheet("Units");
+  var unitsData        = unitsSheet.getDataRange().getValues();
+  var unitHeaders      = unitsData[0];
+  var unitIdCol        = unitHeaders.indexOf("UnitID");
+  var statusCol        = unitHeaders.indexOf("Status");
+  var monthlyRateCol   = unitHeaders.indexOf("MonthlyRate");
   for (var i = 1; i < unitsData.length; i++) {
     if (String(unitsData[i][unitIdCol]) === unitId) {
       unitsSheet.getRange(i + 1, statusCol + 1).setValue("Occupied");
+      if (monthlyRateCol >= 0) {
+        unitsSheet.getRange(i + 1, monthlyRateCol + 1).setValue(monthlyRate);
+      }
       break;
     }
   }
