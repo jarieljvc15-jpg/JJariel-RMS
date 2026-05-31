@@ -392,11 +392,14 @@
     const tableWrap  = document.getElementById('tableWrap');
     const emptyState = document.getElementById('emptyState');
 
-    // Sort rows by Date
+    // Sort rows by Date; ties broken by _rowIdx desc (newest-inserted entry first on same date).
     rows = rows.slice().sort((a, b) => {
       const da = String(a.Date || '');
       const db = String(b.Date || '');
-      return sortDir === 'desc' ? (db < da ? -1 : db > da ? 1 : 0) : (da < db ? -1 : da > db ? 1 : 0);
+      if (da !== db) {
+        return sortDir === 'desc' ? (db < da ? -1 : db > da ? 1 : 0) : (da < db ? -1 : da > db ? 1 : 0);
+      }
+      return (b._rowIdx != null ? Number(b._rowIdx) : 0) - (a._rowIdx != null ? Number(a._rowIdx) : 0);
     });
 
     // Compute summary
