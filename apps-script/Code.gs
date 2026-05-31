@@ -81,6 +81,7 @@ function doPost(e) {
         case "uploadProof":    result = uploadProof(e);       break;
         case "saveReading":    result = saveReading(body);    break;
         case "addTenant":      result = addTenant(body);      break;
+        case "addUnit":        result = addUnit(body);        break;
         case "moveTenant":     result = moveTenant(body);     break;
         case "addExpense":     result = addExpense(body);     break;
         case "addNote":        result = addNote(body);        break;
@@ -195,7 +196,8 @@ function computeBalance(tenantId) {
   var rows = allRows.filter(function(r) {
     var isDepositCredit = r["Direction"] === "Credit" &&
       String(r["Notes"] || "").toLowerCase().indexOf("deposit") !== -1;
-    return !isDepositCredit;
+    var isVoided = String(r["Status"] || "").trim() === "Voided";
+    return !isDepositCredit && !isVoided;
   });
 
   // If no Debit rows exist yet, new tenant has zero balance
@@ -996,6 +998,53 @@ function addTenant(body) {
   return { tenantId: tenantId };
 }
 
+function addUnit(body) {
+  var buildingId   = String(body.buildingId   || "").trim();
+  var unitName     = String(body.unitName     || "").trim();
+  var billingType  = String(body.billingType  || "Separate").trim();
+  var combinedWith = String(body.combinedWith || "").trim();
+  var monthlyRate  = parseFloat(body.monthlyRate) || 0;
+  var status       = String(body.status       || "Vacant").trim();
+
+  if (!buildingId) throw new Error("buildingId is required");
+  if (!unitName)   throw new Error("unitName is required");
+
+  var allUnits = sheetToJSON(getSheet("Units"));
+  var unitId;
+
+  if (buildingId === "BLD-01") {
+    // Main House: derive ID from unit name (e.g. "1A" → "MH-1A")
+    var safeSuffix = unitName.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    if (!safeSuffix) throw new Error("Unit name must contain alphanumeric characters");
+    unitId = "MH-" + safeSuffix;
+    var dup = allUnits.filter(function(u) { return String(u["UnitID"]) === unitId; });
+    if (dup.length > 0) throw new Error("Unit ID " + unitId + " already exists");
+  } else {
+    // Apartment / other buildings: APT-XX auto-incremented from max existing
+    var maxNum = 0;
+    allUnits.forEach(function(u) {
+      var id = String(u["UnitID"] || "");
+      if (id.indexOf("APT-") === 0) {
+        var n = parseInt(id.slice(4), 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      }
+    });
+    unitId = "APT-" + String(maxNum + 1).padStart(2, "0");
+  }
+
+  appendSheetRow(getSheet("Units"), {
+    UnitID:       unitId,
+    BuildingID:   buildingId,
+    UnitName:     unitName,
+    BillingType:  billingType,
+    CombinedWith: combinedWith,
+    MonthlyRate:  monthlyRate,
+    Status:       status
+  });
+
+  return { unitId: unitId };
+}
+
 function moveTenant(body) {
   return { message: "stub: moveTenant", tenantId: body.tenantId };
 }
@@ -1222,13 +1271,19 @@ function voidPayment(body) {
   if (proofRowNum < 0) throw new Error("Submission not found");
 
   if (ledgerTxnId) {
-    var ledgerSheet = getSheet("Ledger");
-    var ledgerData  = ledgerSheet.getDataRange().getValues();
-    var lHeaders    = ledgerData[0].map(function(h) { return String(h).trim(); });
-    var lTxnCol     = lHeaders.indexOf("TxnID");
-    for (var j = ledgerData.length - 1; j >= 1; j--) {
+    var ledgerSheet  = getSheet("Ledger");
+    var ledgerData   = ledgerSheet.getDataRange().getValues();
+    var lHeaders     = ledgerData[0].map(function(h) { return String(h).trim(); });
+    var lTxnCol      = lHeaders.indexOf("TxnID");
+    var lStatusCol   = lHeaders.indexOf("Status");
+    if (lStatusCol < 0) {
+      // Add Status column to the sheet if it doesn't exist yet
+      ledgerSheet.getRange(1, lHeaders.length + 1).setValue("Status");
+      lStatusCol = lHeaders.length; // 0-indexed position of the new column
+    }
+    for (var j = 1; j < ledgerData.length; j++) {
       if (String(ledgerData[j][lTxnCol]) === ledgerTxnId) {
-        ledgerSheet.deleteRow(j + 1);
+        ledgerSheet.getRange(j + 1, lStatusCol + 1).setValue("Voided");
         break;
       }
     }
