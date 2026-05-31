@@ -697,7 +697,7 @@
     var html = '';
     html += '<div id="hist-filter-bar" style="margin-bottom:12px;">';
     html += '<div class="hist-pills">';
-    var filters = [['all', 'All'], ['Bill', 'Bill'], ['Payment', 'Payment'], ['Credit', 'Credit']];
+    var filters = [['all', 'All'], ['Bill', 'Bill'], ['Payment', 'Payment'], ['Credit', 'Credit'], ['Declined', 'Declined']];
     filters.forEach(function(f) {
       html += '<button class="hist-pill' + (f[0] === 'all' ? ' active' : '') + '" data-filter="' + f[0] + '">' + f[1] + '</button>';
     });
@@ -766,6 +766,7 @@
     if (!el) return;
     var items = (data || []).filter(function(item) {
       if (historyFilter === 'all') return true;
+      if (historyFilter === 'Declined') return item._type === 'Payment' && item.status === 'Declined';
       return item._type === historyFilter;
     });
     if (!items.length) {
