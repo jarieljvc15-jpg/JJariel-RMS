@@ -12,9 +12,15 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,800&display=swap" rel="stylesheet">
 
-  <!-- PWA -->
-  <link rel="manifest" href="./manifest.json">
+  <!-- PWA META — added in Step 6 -->
+  <link rel="manifest" href="/JJariel-RMS/manifest.json">
   <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="JJ Apartment">
+  <link rel="apple-touch-icon" href="/JJariel-RMS/assets/icons/icon-192.png">
+  <!-- END PWA META -->
 
   <link rel="stylesheet" href="./assets/style.css">
 </head>
@@ -27,6 +33,18 @@
       <div class="login-logo-name">JJ Apartment</div>
       <div class="login-logo-sub">Rental Management System</div>
     </div>
+
+    <!-- PWA INSTALL BANNER — added in Step 6 -->
+    <!-- Show only when browser supports install prompt and user hasn't dismissed it -->
+    <div id="pwaInstallBanner" style="display:none;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;align-items:center;gap:12px;">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="var(--accent,#3b82f6)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+      </svg>
+      <span style="flex:1;font-family:'Inter',sans-serif;font-weight:400;font-size:13px;color:var(--text-secondary,#64748b);">Add JJ Apartment to your home screen for quick access</span>
+      <button id="pwaInstallAdd" style="background:var(--accent,#3b82f6);color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:13px;font-family:'Inter',sans-serif;cursor:pointer;">Add</button>
+      <button id="pwaInstallDismiss" style="background:none;border:none;font-size:18px;line-height:1;color:var(--text-muted,#94a3b8);cursor:pointer;padding:0 4px;" aria-label="Dismiss">&times;</button>
+    </div>
+    <!-- END PWA INSTALL BANNER -->
 
     <div class="login-actions">
       <button class="btn btn--primary btn--full" id="adminLoginBtn">
@@ -66,13 +84,62 @@
   </div>
 </div>
 
+<!-- PWA SERVICE WORKER REGISTRATION — added in Step 6 -->
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js').catch(function() {});
+      navigator.serviceWorker.register('/JJariel-RMS/sw.js')
+        .then(function(reg) { console.log('SW registered:', reg.scope); })
+        .catch(function(err) { console.log('SW registration failed:', err); });
     });
   }
+</script>
+<!-- END SW REGISTRATION -->
 
+<!-- PWA INSTALL PROMPT LOGIC — added in Step 6 -->
+<!-- Captures the beforeinstallprompt event and wires up the banner buttons -->
+<!-- To disable: set localStorage.setItem('pwa-dismissed', 'true') in console -->
+<script>
+  (function () {
+    var deferredPrompt = null;
+    var banner = document.getElementById('pwaInstallBanner');
+
+    // Only show banner if user hasn't dismissed it before
+    if (localStorage.getItem('pwa-dismissed')) return;
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      banner.style.display = 'flex';
+    });
+
+    document.getElementById('pwaInstallAdd').addEventListener('click', function () {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function (result) {
+        if (result.outcome === 'accepted') {
+          banner.style.display = 'none';
+          localStorage.setItem('pwa-dismissed', 'true');
+        }
+        deferredPrompt = null;
+      });
+    });
+
+    document.getElementById('pwaInstallDismiss').addEventListener('click', function () {
+      banner.style.display = 'none';
+      localStorage.setItem('pwa-dismissed', 'true');
+    });
+
+    // Hide banner after successful install
+    window.addEventListener('appinstalled', function () {
+      banner.style.display = 'none';
+      localStorage.setItem('pwa-dismissed', 'true');
+    });
+  })();
+</script>
+<!-- END PWA INSTALL PROMPT LOGIC -->
+
+<script>
   (function () {
     const modal      = document.getElementById('adminModal');
     const input      = document.getElementById('adminPassphrase');
