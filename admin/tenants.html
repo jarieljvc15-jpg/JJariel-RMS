@@ -528,6 +528,11 @@
     return '<span class="col-amount" style="color:var(--text-muted);">—</span>';
   }
 
+  async function safeJson(res) {
+    const text = await res.text();
+    try { return JSON.parse(text); } catch (_) { return null; }
+  }
+
   // ── More drawer ───────────────────────────────────────────────
 
   const moreDrawer = document.getElementById('moreDrawer');
@@ -765,16 +770,17 @@
       ]);
 
       // Balance
-      const balJson = await balRes.json();
-      const balVal  = balJson.success ? (balJson.data.total || 0) : null;
-      const balHtml = balJson.success ? balanceDisplay(balVal) : '<span class="text-muted">—</span>';
+      const balJson = await safeJson(balRes);
+      const balOk   = !!(balJson && balJson.success && balJson.data);
+      const balVal  = balOk ? (balJson.data.total || 0) : null;
+      const balHtml = balOk ? balanceDisplay(balVal) : '<span class="text-muted">—</span>';
       const balRow  = document.getElementById('tacc-balance-' + tid);
       if (balRow) balRow.querySelector('.acc-balance-val').innerHTML = balHtml;
 
       // Update balance-cell in the main row too
       const balCell = document.querySelector(`.balance-cell[data-tenant-id="${tid}"]`);
       if (balCell) {
-        balCell.innerHTML = balJson.success ? buildBalanceCellHtml(balVal, tid) : '<span class="text-muted">—</span>';
+        balCell.innerHTML = balOk ? buildBalanceCellHtml(balVal, tid) : '<span class="text-muted">—</span>';
         attachCollectBtn(balCell, tid);
       }
 
@@ -873,9 +879,9 @@
   async function fetchBalance(tenantId) {
     try {
       const res  = await fetch(CONFIG.APPS_SCRIPT_URL + '?action=getBalance&tenantId=' + encodeURIComponent(tenantId));
-      const json = await res.json();
-      if (!json.success) return;
-      const b    = json.data.total || 0;
+      const json = await safeJson(res);
+      if (!json || !json.success) return;
+      const b    = json.data ? (json.data.total || 0) : 0;
       const cell = document.querySelector(`.balance-cell[data-tenant-id="${tenantId}"]`);
       if (cell) {
         cell.innerHTML = buildBalanceCellHtml(b, tenantId);
@@ -998,8 +1004,8 @@
       ]);
 
       // Update balance
-      const balJson = await balRes.json();
-      currentBalanceHtml = balJson.success
+      const balJson = await safeJson(balRes);
+      currentBalanceHtml = (balJson && balJson.success && balJson.data)
         ? balanceDisplay(balJson.data.total || 0)
         : '<span class="text-muted">—</span>';
       if (!isEditMode) {
