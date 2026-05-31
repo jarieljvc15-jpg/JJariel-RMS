@@ -1,0 +1,25 @@
+{
+  "name": "JJ Apartment RMS",
+  "short_name": "JJ Apartment",
+  "description": "Rental Management System for JJ Apartment",
+  "start_url": "/JJariel-RMS/index.html",
+  "scope": "/JJariel-RMS/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/JJariel-RMS/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/JJariel-RMS/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

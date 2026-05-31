@@ -201,6 +201,87 @@ Key | Value
 
 ---
 
+## PWA Setup & Maintenance
+
+The app is installable as a Progressive Web App (PWA) on iOS, Android, and desktop.
+
+### Icon Files
+
+SVG source icons are at `assets/icons/icon-192.svg` and `assets/icons/icon-512.svg`.
+The repo includes solid-navy placeholder PNGs. For production, convert the SVGs to proper PNGs:
+
+1. Go to [svgtopng.com](https://svgtopng.com) (or use Inkscape/Figma)
+2. Upload `icon-192.svg` → export as 192×192 PNG → save as `assets/icons/icon-192.png`
+3. Upload `icon-512.svg` → export as 512×512 PNG → save as `assets/icons/icon-512.png`
+4. Commit and push the PNG files
+
+### Testing — iPhone (Safari)
+
+1. Open the site in Safari on iOS
+2. Tap the **Share** button (box with arrow)
+3. Scroll down and tap **Add to Home Screen**
+4. Confirm the name → tap **Add**
+5. The app should appear on your home screen and open fullscreen (no browser chrome)
+
+### Testing — Android (Chrome)
+
+1. Open the site in Chrome on Android
+2. Tap the **three-dot menu** (top-right)
+3. Tap **Add to Home Screen** (or look for the install banner at the bottom)
+4. Confirm → the app installs and appears on the home screen
+
+### Testing — Desktop (Chrome/Edge)
+
+1. Open the site in Chrome or Edge
+2. Look for the install icon in the address bar (right side)
+3. Click it and follow the prompt
+4. The app opens in a standalone window
+
+### Verify Service Worker is Registered
+
+1. Open DevTools → **Application** tab
+2. Click **Service Workers** in the left panel
+3. You should see `sw.js` listed as **Activated and running**
+4. The scope should be `/JJariel-RMS/`
+
+### Force a Cache Update After Deploying Changes
+
+When you push new files and want users to get the update:
+
+1. Open `sw.js`
+2. Find this line near the top:
+   ```js
+   const CACHE_VERSION = "v1";
+   ```
+3. Bump it to `"v2"` (or any new value)
+4. Commit and push
+
+The next time a user visits, the SW will detect the new cache name, download fresh files, and delete the old cache.
+
+### Fully Clear the Service Worker During Debugging
+
+If you're seeing stale content during development:
+
+1. Open DevTools → **Application** tab
+2. Click **Storage** in the left panel
+3. Click **Clear site data** (clears cache, SW, and localStorage)
+4. Reload the page
+
+Alternatively: Application → Service Workers → click **Unregister**, then reload.
+
+### Common PWA Issues & Fixes
+
+| Issue | Fix |
+|-------|-----|
+| Changes not showing after deploy | Bump `CACHE_VERSION` in `sw.js` |
+| SW not updating / stuck on old version | Unregister SW in DevTools → Application → Service Workers, then reload |
+| Icons not showing on home screen | Check that PNG files exist at `assets/icons/icon-192.png` and `icon-512.png`; verify paths in `manifest.json` start with `/JJariel-RMS/` |
+| "Add to Home Screen" not appearing on iOS | iOS requires HTTPS and doesn't use `beforeinstallprompt`; use Safari Share → Add to Home Screen manually |
+| App opens in browser instead of standalone | Ensure `manifest.json` is linked in `<head>` and SW is registered; check `display: "standalone"` in manifest |
+| Install banner never shows | Check DevTools console for SW errors; banner only appears when `beforeinstallprompt` fires (Chrome/Edge/Android only) |
+
+---
+
 ## Notes
 
 - **No fixed due date:** Bills are generated manually by the admin for any billing month.
