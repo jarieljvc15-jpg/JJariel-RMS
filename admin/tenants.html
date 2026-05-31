@@ -592,11 +592,14 @@
       ]);
       const tJson = await tRes.json();
       const uJson = await uRes.json();
+      console.log('[Tenants] getTenants response:', tJson);
+      console.log('[Tenants] getUnits response:', uJson);
       if (!tJson.success) throw new Error(tJson.error || 'Failed to load tenants');
       if (!uJson.success) throw new Error(uJson.error || 'Failed to load units');
 
-      tenants = tJson.data;
-      units   = uJson.data;
+      tenants = Array.isArray(tJson.data) ? tJson.data : [];
+      units   = Array.isArray(uJson.data) ? uJson.data : [];
+      console.log('[Tenants] loaded', tenants.length, 'tenants,', units.length, 'units');
 
       populateUnitDropdown();
       renderTenants();
@@ -604,6 +607,7 @@
       loading.classList.add('hidden');
       content.classList.remove('hidden');
     } catch (err) {
+      console.error('[Tenants] loadData error:', err);
       loading.classList.add('hidden');
       error.classList.remove('hidden');
       document.getElementById('errorMsg').textContent = err.message;
