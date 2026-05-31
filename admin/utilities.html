@@ -794,24 +794,34 @@
     // Render rows
     const rowsContainer = document.getElementById('bulkLogRows');
     rowsContainer.innerHTML = occupiedUnits.map(u => {
-      const prevData = prevReadingsMap[u.UnitID];
-      const prevReading = prevData ? (parseFloat(prevData.ElecCurrent) || 0) : 0;
-      return '<div class="bulk-unit-row" data-unit-id="' + escHtml(u.UnitID) + '" data-prev-reading="' + prevReading + '">'
+      const prevData  = prevReadingsMap[u.UnitID];
+      const elecPrev  = prevData ? (parseFloat(prevData.ElecCurrent)  || 0) : 0;
+      const waterPrev = prevData ? (parseFloat(prevData.WaterCurrent) || 0) : 0;
+      return '<div class="bulk-unit-row" data-unit-id="' + escHtml(u.UnitID) + '" data-elec-prev="' + elecPrev + '" data-water-prev="' + waterPrev + '">'
         + '<div class="bulk-unit-header">'
         + '<span class="bulk-unit-name">' + escHtml(u.UnitName) + '</span>'
         + '<span class="bulk-unit-tenant">' + escHtml(tenantByUnit[u.UnitID] || '') + '</span>'
         + '</div>'
-        + '<div class="bulk-reading-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">'
-        + '<div>'
-        + '<label style="font-size:11px;color:var(--text-muted);">Previous</label>'
-        + '<input type="number" class="form-input bulk-prev-input" value="' + prevReading + '" readonly style="background:var(--bg-subtle);">'
+        + '<div style="margin-top:8px;">'
+        + '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Electric (kWh)</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+        + '<div><label style="font-size:11px;color:var(--text-muted);">Previous</label>'
+        + '<input type="number" class="form-input bulk-elec-prev-input" value="' + elecPrev + '" readonly style="background:var(--bg-subtle);"></div>'
+        + '<div><label style="font-size:11px;color:var(--text-muted);">Current</label>'
+        + '<input type="number" class="form-input bulk-elec-curr-input" placeholder="Enter reading"></div>'
         + '</div>'
-        + '<div>'
-        + '<label style="font-size:11px;color:var(--text-muted);">Current</label>'
-        + '<input type="number" class="form-input bulk-curr-input" placeholder="Enter reading" required>'
+        + '<div class="bulk-elec-consumption" style="font-size:12px;color:var(--text-muted);margin-top:2px;"></div>'
         + '</div>'
+        + '<div style="margin-top:8px;">'
+        + '<div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Water (m³)</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+        + '<div><label style="font-size:11px;color:var(--text-muted);">Previous</label>'
+        + '<input type="number" class="form-input bulk-water-prev-input" value="' + waterPrev + '" readonly style="background:var(--bg-subtle);"></div>'
+        + '<div><label style="font-size:11px;color:var(--text-muted);">Current</label>'
+        + '<input type="number" class="form-input bulk-water-curr-input" placeholder="Enter reading"></div>'
         + '</div>'
-        + '<div class="bulk-consumption"></div>'
+        + '<div class="bulk-water-consumption" style="font-size:12px;color:var(--text-muted);margin-top:2px;"></div>'
+        + '</div>'
         + '<div class="bulk-row-error"></div>'
         + '<hr style="border:none;border-top:1px solid var(--border,#e5e7eb);margin:10px 0 4px;">'
         + '</div>';
@@ -823,7 +833,7 @@
     validMsg.textContent = '';
 
     // Attach live consumption listeners
-    rowsContainer.querySelectorAll('.bulk-curr-input').forEach(input => {
+    rowsContainer.querySelectorAll('.bulk-elec-curr-input, .bulk-water-curr-input').forEach(input => {
       input.addEventListener('input', function() {
         updateBulkRowConsumption(this.closest('.bulk-unit-row'));
         validateBulkRow(this.closest('.bulk-unit-row'));
@@ -835,31 +845,40 @@
   }
 
   function updateBulkRowConsumption(row) {
-    const prev = parseFloat(row.dataset.prevReading) || 0;
-    const currInput = row.querySelector('.bulk-curr-input');
-    const curr = parseFloat(currInput.value);
-    const consDiv = row.querySelector('.bulk-consumption');
-    if (!isNaN(curr)) {
-      consDiv.textContent = 'Consumption: ' + (curr - prev).toFixed(2) + ' kWh';
-    } else {
-      consDiv.textContent = '';
-    }
+    const elecPrev = parseFloat(row.dataset.elecPrev) || 0;
+    const elecCurr = parseFloat(row.querySelector('.bulk-elec-curr-input').value);
+    const elecCons = row.querySelector('.bulk-elec-consumption');
+    elecCons.textContent = !isNaN(elecCurr)
+      ? 'Consumption: ' + Math.max(0, elecCurr - elecPrev).toFixed(2) + ' kWh'
+      : '';
+
+    const waterPrev = parseFloat(row.dataset.waterPrev) || 0;
+    const waterCurr = parseFloat(row.querySelector('.bulk-water-curr-input').value);
+    const waterCons = row.querySelector('.bulk-water-consumption');
+    waterCons.textContent = !isNaN(waterCurr)
+      ? 'Consumption: ' + Math.max(0, waterCurr - waterPrev).toFixed(2) + ' m³'
+      : '';
   }
 
   function validateBulkRow(row) {
-    const prev = parseFloat(row.dataset.prevReading) || 0;
-    const currInput = row.querySelector('.bulk-curr-input');
-    const curr = parseFloat(currInput.value);
-    const errDiv = row.querySelector('.bulk-row-error');
-    if (!isNaN(curr) && curr < prev) {
-      errDiv.textContent = 'Current reading cannot be less than previous reading (' + prev + ').';
+    const errDiv    = row.querySelector('.bulk-row-error');
+    const elecPrev  = parseFloat(row.dataset.elecPrev)  || 0;
+    const elecCurr  = parseFloat(row.querySelector('.bulk-elec-curr-input').value);
+    const waterPrev = parseFloat(row.dataset.waterPrev) || 0;
+    const waterCurr = parseFloat(row.querySelector('.bulk-water-curr-input').value);
+    if (!isNaN(elecCurr) && elecCurr < elecPrev) {
+      errDiv.textContent = 'Electric reading (' + elecCurr + ') cannot be less than previous (' + elecPrev + ').';
       errDiv.style.display = 'block';
       return false;
-    } else {
-      errDiv.textContent = '';
-      errDiv.style.display = 'none';
-      return true;
     }
+    if (!isNaN(waterCurr) && waterCurr < waterPrev) {
+      errDiv.textContent = 'Water reading (' + waterCurr + ') cannot be less than previous (' + waterPrev + ').';
+      errDiv.style.display = 'block';
+      return false;
+    }
+    errDiv.textContent = '';
+    errDiv.style.display = 'none';
+    return true;
   }
 
   function updateBulkValidationMsg() {
@@ -919,11 +938,21 @@
 
     const readings = [];
     rows.forEach(row => {
-      const unitId = row.dataset.unitId;
-      const currentReading = parseFloat(row.querySelector('.bulk-curr-input').value);
-      const previousReading = parseFloat(row.dataset.prevReading) || 0;
-      if (!isNaN(currentReading)) {
-        readings.push({ unitId, currentReading, previousReading, billingMonth });
+      const unitId    = row.dataset.unitId;
+      const elecPrev  = parseFloat(row.dataset.elecPrev)  || 0;
+      const elecCurr  = parseFloat(row.querySelector('.bulk-elec-curr-input').value);
+      const waterPrev = parseFloat(row.dataset.waterPrev) || 0;
+      const waterCurr = parseFloat(row.querySelector('.bulk-water-curr-input').value);
+      if (!isNaN(elecCurr) || !isNaN(waterCurr)) {
+        readings.push({
+          unitId,
+          billingMonth,
+          elecPrev,
+          elecCurrent:  isNaN(elecCurr)  ? elecPrev  : elecCurr,
+          waterPrev,
+          waterCurrent: isNaN(waterCurr) ? waterPrev : waterCurr,
+          mode:         'byReading'
+        });
       }
     });
 
