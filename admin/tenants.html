@@ -409,6 +409,10 @@
             <option value="">Select vacant unit…</option>
           </select>
         </div>
+        <div class="form-group form-group--full">
+          <label class="form-label" for="fMonthlyRate">Monthly Rate (₱)</label>
+          <input class="form-input" id="fMonthlyRate" type="number" min="0" step="1" placeholder="Auto-filled when unit selected" required>
+        </div>
         <div class="form-group">
           <label class="form-label" for="fContact">Contact Number</label>
           <input class="form-input" id="fContact" type="tel" placeholder="e.g. 09171234567">
@@ -562,6 +566,11 @@
 
   document.getElementById('addTenantBtn').addEventListener('click', () => openPanel('addTenantPanel'));
 
+  document.getElementById('fUnit').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    document.getElementById('fMonthlyRate').value = (opt && opt.value) ? (opt.dataset.monthlyRate || '') : '';
+  });
+
   document.getElementById('recordPaymentBtn').addEventListener('click', () => {
     if (activeTenant && window.openQuickPaymentForTenant) {
       window.openQuickPaymentForTenant(activeTenant.TenantID);
@@ -629,6 +638,7 @@
         const opt = document.createElement('option');
         opt.value = u.UnitID;
         opt.textContent = (u.UnitName || u.UnitID) + (u.BuildingName ? ' — ' + u.BuildingName : '');
+        opt.dataset.monthlyRate = u.MonthlyRate || 0;
         sel.appendChild(opt);
       });
   }
@@ -1091,6 +1101,7 @@
       advance:     parseFloat(document.getElementById('fAdvance').value) || 0,
       deposit:     parseFloat(document.getElementById('fDeposit').value) || 0,
       pin:         pin,
+      monthlyRate: parseFloat(document.getElementById('fMonthlyRate').value) || 0,
     };
 
     try {
