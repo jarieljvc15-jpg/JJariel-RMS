@@ -433,6 +433,22 @@
           <label class="form-label" for="fDeposit">Deposit (₱)</label>
           <input class="form-input" id="fDeposit" type="number" min="0" step="1" value="0">
         </div>
+        <div class="form-group form-group--full" style="padding-top:12px;margin-top:4px;border-top:1px solid var(--border);">
+          <span style="font-family:'Inter',sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Previous Balance</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fPrevBalance">Previous Balance (₱)</label>
+          <input class="form-input" id="fPrevBalance" type="number" step="1" value="0">
+          <span class="form-hint">Positive = owes; negative = in credit</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fBalanceAsOf">As of Date</label>
+          <input class="form-input" id="fBalanceAsOf" type="date">
+        </div>
+        <div class="form-group form-group--full">
+          <label class="form-label" for="fBalanceRemarks">Remarks</label>
+          <input class="form-input" id="fBalanceRemarks" type="text" placeholder="e.g. Carried over from manual records">
+        </div>
         <div class="form-group">
           <label class="form-label" for="fPin">PIN (4-digit)</label>
           <input class="form-input" id="fPin" type="text" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="e.g. 1234" required>
@@ -569,6 +585,11 @@
   document.getElementById('fUnit').addEventListener('change', function() {
     const opt = this.options[this.selectedIndex];
     document.getElementById('fMonthlyRate').value = (opt && opt.value) ? (opt.dataset.monthlyRate || '') : '';
+  });
+
+  document.getElementById('fMoveIn').addEventListener('change', function() {
+    const asOf = document.getElementById('fBalanceAsOf');
+    if (!asOf.value) asOf.value = this.value;
   });
 
   document.getElementById('recordPaymentBtn').addEventListener('click', () => {
@@ -1098,10 +1119,13 @@
       contact:     document.getElementById('fContact').value.trim(),
       email:       document.getElementById('fEmail').value.trim(),
       moveInDate:  document.getElementById('fMoveIn').value,
-      advance:     parseFloat(document.getElementById('fAdvance').value) || 0,
-      deposit:     parseFloat(document.getElementById('fDeposit').value) || 0,
-      pin:         pin,
-      monthlyRate: parseFloat(document.getElementById('fMonthlyRate').value) || 0,
+      advance:          parseFloat(document.getElementById('fAdvance').value)     || 0,
+      deposit:          parseFloat(document.getElementById('fDeposit').value)     || 0,
+      pin:              pin,
+      monthlyRate:      parseFloat(document.getElementById('fMonthlyRate').value) || 0,
+      previousBalance:  parseFloat(document.getElementById('fPrevBalance').value) || 0,
+      balanceAsOfDate:  document.getElementById('fBalanceAsOf').value,
+      balanceRemarks:   document.getElementById('fBalanceRemarks').value.trim(),
     };
 
     try {
