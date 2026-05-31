@@ -258,7 +258,13 @@ function getTenants() {
 }
 
 function getLedger(params) {
-  var rows = sheetToJSON(getSheet("Ledger"));
+  var raw = sheetToJSON(getSheet("Ledger"));
+
+  // Tag each row with its sheet row index before filtering so we have a
+  // stable, monotonically-increasing tiebreaker that reflects insertion order.
+  raw.forEach(function(r, i) { r._rowIdx = i; });
+
+  var rows = raw;
 
   if (params.tenantId) {
     rows = rows.filter(function(r) { return String(r["TenantID"]) === String(params.tenantId); });
@@ -296,11 +302,12 @@ function getLedger(params) {
     return r;
   });
 
-  // Sort newest first by Date
+  // Sort: date desc; ties broken by sheet insertion order desc (newest row first).
   rows.sort(function(a, b) {
     var da = String(a["Date"] || "");
     var db = String(b["Date"] || "");
-    return da < db ? 1 : da > db ? -1 : 0;
+    if (da !== db) return da < db ? 1 : -1;
+    return (b._rowIdx || 0) - (a._rowIdx || 0);
   });
 
   return rows;
