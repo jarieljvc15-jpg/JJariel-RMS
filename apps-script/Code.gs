@@ -167,6 +167,15 @@ function generateTxnID() {
   return "TXN-" + ts + "-" + rnd;
 }
 
+function rndSuffix() {
+  return Math.random().toString(36).substring(2, 6).toUpperCase();
+}
+
+function normalizeProofStatus(status) {
+  var s = String(status || "").trim();
+  return s === "Rejected" ? "Declined" : s;
+}
+
 function isTxnIDDuplicate(txnId) {
   var sheet = getSheet("Ledger");
   var data  = sheet.getDataRange().getValues();
@@ -647,7 +656,7 @@ function recordPayment(body) {
     billingMonth = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
   }
 
-  var txnId = "PAY-" + tenantId + "-" + Date.now();
+  var txnId = "PAY-" + tenantId + "-" + Date.now() + "-" + rndSuffix();
 
   appendSheetRow(getSheet("Ledger"), {
     TxnID:        txnId,
@@ -687,7 +696,7 @@ function recordPayment(body) {
 function uploadProof(e) {
   var body        = JSON.parse(e.postData.contents);
   var base64Image = String(body.base64Image || "").trim();
-  var fileName    = String(body.fileName    || ("proof-" + Date.now() + ".jpg")).trim();
+  var fileName    = String(body.fileName    || ("proof-" + Date.now() + "-" + rndSuffix() + ".jpg")).trim();
 
   if (!base64Image) throw new Error("base64Image is required");
 
@@ -748,7 +757,7 @@ function submitPaymentProof(body) {
   }
 
   var cfg          = getConfig();
-  var submissionId = "PROOF-" + Date.now();
+  var submissionId = "PROOF-" + Date.now() + "-" + rndSuffix();
 
   appendSheetRow(sheet, {
     SubmissionID: submissionId,
@@ -942,7 +951,7 @@ function addTenant(body) {
 
   if (!name || !unitId || !pin) throw new Error("name, unitId, and pin are required");
 
-  var tenantId = "T-" + Date.now();
+  var tenantId = "T-" + Date.now() + "-" + rndSuffix();
   var today    = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
   var month    = moveInDate ? moveInDate.substring(0, 7)
                : Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM");
@@ -1098,7 +1107,7 @@ function addExpense(body) {
   if (amount <= 0) throw new Error("amount must be greater than 0");
   if (!payee)    throw new Error("payee is required");
 
-  var expenseId = "EXP-" + Date.now();
+  var expenseId = "EXP-" + Date.now() + "-" + rndSuffix();
 
   appendSheetRow(getSheet("Expenses"), {
     ExpenseID: expenseId,
@@ -1139,7 +1148,7 @@ function getProofs(params) {
 
   rows = rows.map(function(r) {
     var rawStatus = String(r["Status"] || "Pending");
-    if (rawStatus === "Rejected") rawStatus = "Declined";
+    rawStatus = normalizeProofStatus(rawStatus);
     return {
       submissionId:  String(r["SubmissionID"]  || r["ProofID"] || ""),
       TenantID:      String(r["TenantID"]      || ""),
@@ -1166,7 +1175,7 @@ function getProofs(params) {
   Logger.log("[getProofs] headers: " + JSON.stringify(headers) + " | first row submissionId: " + (rows.length > 0 ? rows[0].submissionId : "none"));
 
   if (rows.length > 0) {
-    Logger.log("[getProofs] First row: proofId=" + rows[0].proofId + " | r[ProofID]=" + rows[0].proofId);
+    Logger.log("[getProofs] First row: submissionId=" + rows[0].submissionId);
   }
 
   if (params && params.status) {
@@ -1399,7 +1408,7 @@ function approveProof(body) {
 
   var balanceBefore = computeBalance(tenantId);
 
-  var txnId = "PAY-" + tenantId + "-" + Date.now();
+  var txnId = "PAY-" + tenantId + "-" + Date.now() + "-" + rndSuffix();
 
   // Mark as Approved first so the proof state is consistent before the Ledger write.
   if (statusCol     >= 0) proofSheet.getRange(proofRowNum, statusCol     + 1).setValue("Approved");
@@ -2580,7 +2589,7 @@ function getTenantHistory(params) {
       });
     } else if (txnType === "Payment") {
       var proof       = proofByTxnId[txnId] || null;
-      var proofStatus = proof ? String(proof["Status"] || "Approved") : "Admin Posted";
+      var proofStatus = proof ? normalizeProofStatus(String(proof["Status"] || "Approved")) : "Admin Posted";
       var pid         = proof ? String(proof["ProofID"] || proof["SubmissionID"] || "") : "";
       if (pid) joinedProofs[pid] = true;
       result.push({
@@ -2615,7 +2624,7 @@ function getTenantHistory(params) {
     if (joinedProofs[pid]) return;
     var ltid   = String(p["LedgerTxnID"] || "").trim();
     if (ltid) return;
-    var status = String(p["Status"] || "Pending");
+    var status = normalizeProofStatus(String(p["Status"] || "Pending"));
     if (status !== "Pending" && status !== "Declined") return;
     result.push({
       _type:         "Payment",
