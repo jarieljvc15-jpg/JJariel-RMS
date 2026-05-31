@@ -1190,11 +1190,11 @@
     });
   }
 
-  // Kept from origin — opens proof panel when proof-card clicked (used by origin's proofPanel flow)
+  // Kept from origin — opens proof panel when submission-card clicked (used by origin's proofPanel flow)
   function bindReviewCards(container) {
-    container.querySelectorAll('.proof-card').forEach(function (card) {
+    container.querySelectorAll('.submission-card').forEach(function (card) {
       card.addEventListener('click', function () {
-        var id = card.getAttribute('data-proof-id');
+        var id = card.getAttribute('data-submission-id');
         var proof = (typeof reviewProofs !== 'undefined' ? reviewProofs : []).find(function (p) { return String(p.submissionId) === String(id); });
         if (proof && typeof openProofPanel === 'function') openProofPanel(proof);
       });
@@ -1205,10 +1205,10 @@
   }
 
   function removeReviewCard(submissionId) {
-    var card = document.querySelector('.proof-card[data-proof-id="' + submissionId + '"]');
+    var card = document.querySelector('.submission-card[data-submission-id="' + submissionId + '"]');
     if (card) card.remove();
     reviewProofs = reviewProofs.filter(function (p) { return String(p.submissionId) !== String(submissionId); });
-    var count = document.querySelectorAll('#reviewList .proof-card').length;
+    var count = document.querySelectorAll('#reviewList .submission-card').length;
     document.getElementById('pendingBadge').textContent = count;
     document.getElementById('approvalsDot').style.display = count > 0 ? 'block' : 'none';
     if (count === 0) {
