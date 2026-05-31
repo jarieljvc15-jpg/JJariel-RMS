@@ -310,6 +310,12 @@
     <!-- Step 3: Payment form -->
     <div id="rpPaymentForm" class="hidden">
 
+      <!-- Billing Month -->
+      <div class="form-group" style="margin-bottom:14px;">
+        <label class="form-label" for="rpMonth">Billing Month</label>
+        <input class="form-input" id="rpMonth" type="month" required>
+      </div>
+
       <!-- Amount -->
       <div class="form-group" style="margin-bottom:14px;">
         <label class="form-label" for="rpTotal">Total Amount (₱)</label>
@@ -533,6 +539,7 @@
   const now = new Date();
   const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   document.getElementById('gbMonth').value = currentMonth;
+  document.getElementById('rpMonth').value = currentMonth;
 
   // ── Load tenants ───────────────────────────────────────────────
 
@@ -1027,7 +1034,7 @@
         action:       'recordPayment',
         adminToken:   localStorage.getItem('adminToken'),
         tenantId:     tenantId,
-        billingMonth: currentMonth,
+        billingMonth: document.getElementById('rpMonth').value || currentMonth,
         totalPaid:    totalPaid,
         rentAmount:   rentAmount,
         elecAmount:   elecAmount,
