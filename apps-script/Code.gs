@@ -925,11 +925,14 @@ function addTenant(body) {
   var contact    = String(body.contact    || "").trim();
   var email      = String(body.email      || "").trim();
   var moveInDate = String(body.moveInDate || "").trim();
-  var advance      = parseFloat(body.advance)      || 0;
-  var deposit      = parseFloat(body.deposit)      || 0;
-  var pin          = String(body.pin               || "").trim();
-  var monthlyRate  = parseFloat(body.monthlyRate);
-  if (isNaN(monthlyRate)) monthlyRate = 0;
+  var advance          = parseFloat(body.advance)         || 0;
+  var deposit          = parseFloat(body.deposit)         || 0;
+  var pin              = String(body.pin                  || "").trim();
+  var monthlyRate      = parseFloat(body.monthlyRate)     || 0;
+  var previousBalance  = parseFloat(body.previousBalance);
+  if (isNaN(previousBalance)) previousBalance = 0;
+  var balanceAsOfDate  = String(body.balanceAsOfDate      || "").trim();
+  var balanceRemarks   = String(body.balanceRemarks       || "").trim();
 
   if (!name || !unitId || !pin) throw new Error("name, unitId, and pin are required");
 
@@ -999,6 +1002,28 @@ function addTenant(body) {
       }
       break;
     }
+  }
+
+  if (previousBalance !== 0) {
+    var isDebit   = previousBalance > 0;
+    var absAmount = Math.abs(previousBalance);
+    var balDate   = balanceAsOfDate || today;
+    var balMonth  = balDate.substring(0, 7);
+    var balNotes  = "Previous Balance" + (balanceRemarks ? " — " + balanceRemarks : "");
+    appendSheetRow(getSheet("Ledger"), {
+      TxnID:        generateTxnID(),
+      TenantID:     tenantId,
+      UnitID:       unitId,
+      BillingMonth: balMonth,
+      TxnType:      isDebit ? "Bill"   : "Credit",
+      Direction:    isDebit ? "Debit"  : "Credit",
+      RentAmount:   absAmount,
+      ElecAmount:   0,
+      WaterAmount:  0,
+      TotalAmount:  absAmount,
+      Notes:        balNotes,
+      Date:         balDate
+    });
   }
 
   return { tenantId: tenantId };
