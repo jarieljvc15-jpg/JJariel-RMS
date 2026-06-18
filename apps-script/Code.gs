@@ -67,7 +67,9 @@ function doPost(e) {
     }
 
     var cfg = getConfig();
-    if (body.adminToken !== cfg["AdminPassphrase"]) {
+    var storedPass  = String(cfg["AdminPassphrase"] || "").trim();
+    var providedTok = String(body.adminToken        || "").trim();
+    if (!storedPass || providedTok !== storedPass) {
       return respond(null, "Unauthorized");
     }
 
@@ -148,7 +150,11 @@ function sheetToJSON(sheet) {
 function getConfig() {
   var rows = sheetToJSON(getSheet("Config"));
   var cfg = {};
-  rows.forEach(function(r) { cfg[r["Key"]] = r["Value"]; });
+  rows.forEach(function(r) {
+    var key = String(r["Key"]   || "").trim();
+    var val = String(r["Value"] || "").trim();
+    if (key) cfg[key] = val;
+  });
   return cfg;
 }
 
