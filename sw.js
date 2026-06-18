@@ -8,7 +8,7 @@
 // ============================================
 
 // --- CONFIG: change this one line to bust cache on new releases ---
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CACHE_NAME = "jj-rms-" + CACHE_VERSION;
 const BASE = "/JJariel-RMS";
 
@@ -90,24 +90,23 @@ self.addEventListener("activate", function (event) {
 self.addEventListener("fetch", function (event) {
   const url = event.request.url;
 
-  // --- API calls: network-first, JSON offline fallback ---
+  // Non-GET requests (POST, PUT, etc.) cannot be cached by the Cache API.
+  // Pass them straight through without any SW involvement.
+  if (event.request.method !== 'GET') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // --- API calls: network-only, JSON offline fallback ---
   if (isApiCall(url)) {
     event.respondWith(
       fetch(event.request)
-        .then(function (response) {
-          var clone = response.clone();
-          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
-          return response;
-        })
         .catch(function () {
-          return caches.match(event.request).then(function (cached) {
-            if (cached) return cached;
-            console.log("[SW] API offline fallback triggered for:", url);
-            return new Response(
-              JSON.stringify({ success: false, error: "offline" }),
-              { headers: { "Content-Type": "application/json" } }
-            );
-          });
+          console.log("[SW] API offline fallback triggered for:", url);
+          return new Response(
+            JSON.stringify({ success: false, error: "offline" }),
+            { headers: { "Content-Type": "application/json" } }
+          );
         })
     );
     return;
