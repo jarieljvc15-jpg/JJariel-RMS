@@ -65,24 +65,22 @@ function doPost(e) {
         uLock.releaseLock();
       }
     }
+  var cfg = getConfig();
+  var storedPass  = String(cfg["AdminPassphrase"] || "").trim();
+  var providedTok = String(body.adminToken || "").trim();
 
-    var cfg = getConfig();
-var storedPass  = String(cfg["AdminPassphrase"] || "").trim();
-var providedTok = String(body.adminToken || "").trim();
+  var openActions = [
+    "saveReading",
+    "bulkLogReadings"
+  ];
 
-// Actions allowed without admin token
-var openActions = [
-  "saveReading",
-  "bulkLogReadings"
-];
+  if (openActions.indexOf(action) === -1) {
+    if (!storedPass || providedTok !== storedPass) {
+      return respond(null, "Unauthorized");
+    }
+ }
 
-if (openActions.indexOf(action) === -1) {
-  if (!storedPass || providedTok !== storedPass) {
-    return respond(null, "Unauthorized");
-  }
-}
-
-    var lock = LockService.getScriptLock();
+var lock = LockService.getScriptLock();
     lock.tryLock(10000);
     try {
       var result;
