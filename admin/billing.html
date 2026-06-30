@@ -518,6 +518,21 @@
     }).then(r => r.json());
   }
 
+  function isUnauthorizedError(error) {
+    return String(error || '').toLowerCase().includes('unauthorized');
+  }
+
+  function handleInvalidAdminSession(alertId) {
+    localStorage.removeItem('adminToken');
+    setAlert(
+      alertId,
+      'danger',
+      dangerIcon() + 'Your admin session is invalid or expired. Please re-enter the admin passphrase to continue. ' +
+      '<a class="btn btn--accent" href="../index.html" style="margin-top:10px;">Log in again</a>'
+    );
+    setTimeout(() => { window.location.href = '../index.html'; }, 2500);
+  }
+
   // ── More drawer ────────────────────────────────────────────────
 
   const moreDrawer = document.getElementById('moreDrawer');
@@ -761,15 +776,8 @@
 
       if (!json.success) {
         const errorText = String(json.error || '');
-        if (errorText.toLowerCase().includes('unauthorized')) {
-          localStorage.removeItem('adminToken');
-          setAlert(
-            'gbAlert',
-            'danger',
-            dangerIcon() + 'Your admin session is invalid or expired. Please log in again with the current admin passphrase. ' +
-            '<a class="btn btn--accent" href="../index.html" style="margin-top:10px;">Log in again</a>'
-          );
-          setTimeout(() => { window.location.href = '../index.html'; }, 2500);
+        if (isUnauthorizedError(errorText)) {
+          handleInvalidAdminSession('gbAlert');
         } else if (json.error && json.error.toLowerCase().includes('duplicate')) {
           setAlert('gbAlert', 'warning', warnIcon() + 'Bill already exists for this tenant this month — skipped');
           // Re-enable so admin can retry
