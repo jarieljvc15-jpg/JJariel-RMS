@@ -760,13 +760,25 @@
       const json = await postJSON(payload);
 
       if (!json.success) {
-        if (json.error && json.error.toLowerCase().includes('duplicate')) {
+        const errorText = String(json.error || '');
+        if (errorText.toLowerCase().includes('unauthorized')) {
+          localStorage.removeItem('adminToken');
+          setAlert(
+            'gbAlert',
+            'danger',
+            dangerIcon() + 'Your admin session is invalid or expired. Please log in again with the current admin passphrase. ' +
+            '<a class="btn btn--accent" href="../index.html" style="margin-top:10px;">Log in again</a>'
+          );
+          setTimeout(() => { window.location.href = '../index.html'; }, 2500);
+        } else if (json.error && json.error.toLowerCase().includes('duplicate')) {
           setAlert('gbAlert', 'warning', warnIcon() + 'Bill already exists for this tenant this month — skipped');
+          // Re-enable so admin can retry
+          this.disabled = false;
         } else {
           setAlert('gbAlert', 'danger', dangerIcon() + escHtml(json.error || 'Failed to generate bill'));
+          // Re-enable so admin can retry
+          this.disabled = false;
         }
-        // Re-enable so admin can retry
-        this.disabled = false;
       } else {
         const d = json.data;
         let msg = 'Bill generated for ' + d.billsCreated + ' tenant(s) for ' + billingMonth + '.';
