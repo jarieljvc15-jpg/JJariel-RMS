@@ -139,6 +139,7 @@
 </script>
 <!-- END PWA INSTALL PROMPT LOGIC -->
 
+<script src="./assets/config.js"></script>
 <script>
   (function () {
     const modal      = document.getElementById('adminModal');
@@ -159,15 +160,40 @@
       modal.style.display = 'none';
     }
 
-    function submit() {
+    async function submit() {
       const val = input.value.trim();
       if (!val) {
+        errMsg.textContent = 'Passphrase cannot be empty.';
         errMsg.style.display = 'block';
         input.focus();
         return;
       }
-      localStorage.setItem('adminToken', val);
-      window.location.href = './admin/index.html';
+
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Checking...';
+      errMsg.style.display = 'none';
+
+      try {
+        const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'validateAdminToken', adminToken: val })
+        });
+        const json = await res.json();
+
+        if (!json.success) {
+          throw new Error(json.error || 'Invalid passphrase.');
+        }
+
+        localStorage.setItem('adminToken', val);
+        window.location.href = './admin/index.html';
+      } catch (err) {
+        errMsg.textContent = 'Invalid passphrase. Please try again.';
+        errMsg.style.display = 'block';
+        input.focus();
+      } finally {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Enter';
+      }
     }
 
     btnOpen.addEventListener('click', openModal);

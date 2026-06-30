@@ -582,7 +582,7 @@
 </head>
 <body>
 
-<script>if (!localStorage.getItem('adminToken')) window.location.href = '../index.html';</script>
+
 
 <!-- Topbar -->
 <header class="topbar">
@@ -908,9 +908,12 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="../assets/config.js"></script>
+<script src="../assets/admin-auth.js"></script>
 <script>
 (function () {
   'use strict';
+
+  validateStoredAdminToken();
 
   var adminToken = localStorage.getItem('adminToken');
 
