@@ -44,6 +44,10 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var action = body.action;
 
+    if (action === "validateAdminToken") {
+      return respond(validateAdminToken(body));
+    }
+
     // Tenant-facing: no admin token required
     if (action === "submitPaymentProof") {
       var tLock = LockService.getScriptLock();
@@ -152,6 +156,18 @@ function sheetToJSON(sheet) {
     rows.push(row);
   }
   return rows;
+}
+
+function validateAdminToken(body) {
+  var cfg = getConfig();
+  var storedPass = String(cfg["AdminPassphrase"] || "").trim();
+  var providedTok = String(body.adminToken || "").trim();
+
+  if (!storedPass || providedTok !== storedPass) {
+    throw new Error("Invalid admin passphrase");
+  }
+
+  return { valid: true };
 }
 
 function getConfig() {
