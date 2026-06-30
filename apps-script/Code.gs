@@ -67,11 +67,20 @@ function doPost(e) {
     }
 
     var cfg = getConfig();
-    var storedPass  = String(cfg["AdminPassphrase"] || "").trim();
-    var providedTok = String(body.adminToken        || "").trim();
-    if (!storedPass || providedTok !== storedPass) {
-      return respond(null, "Unauthorized");
-    }
+var storedPass  = String(cfg["AdminPassphrase"] || "").trim();
+var providedTok = String(body.adminToken || "").trim();
+
+// Actions allowed without admin token
+var openActions = [
+  "saveReading",
+  "bulkLogReadings"
+];
+
+if (openActions.indexOf(action) === -1) {
+  if (!storedPass || providedTok !== storedPass) {
+    return respond(null, "Unauthorized");
+  }
+}
 
     var lock = LockService.getScriptLock();
     lock.tryLock(10000);
